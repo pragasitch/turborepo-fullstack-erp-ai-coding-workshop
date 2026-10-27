@@ -32,6 +32,7 @@ model User {
   storeId        String?
   store          Store?          @relation(fields: [storeId], references: [id])
   stockMovements StockMovement[]
+  auditLogs      AuditLog[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
@@ -144,4 +145,26 @@ model StockMovement {
 model DocumentSequence {
   prefix    String @id
   lastValue Int
+}
+
+/// Audit trail (NFR-03). One immutable row per audited action — who did it, to which
+/// source document, and the outcome. Established by the stock-adjustment ticket and
+/// reused by PO approvals, goods receipts and sales confirmations. Reads are
+/// permission-restricted at the API.
+model AuditLog {
+  id                 String   @id @default(cuid())
+  actorId            String
+  actor              User     @relation(fields: [actorId], references: [id])
+  /// What happened, e.g. "STOCK_ADJUSTMENT".
+  action             String
+  /// The document the action concerned, e.g. type "ADJUSTMENT" and its number.
+  sourceDocumentType String
+  sourceDocumentId   String
+  /// "SUCCESS" or "REJECTED".
+  outcome            String
+  /// Optional human-readable context, e.g. the adjustment reason.
+  detail             String?
+  createdAt          DateTime @default(now())
+
+  @@index([createdAt])
 }

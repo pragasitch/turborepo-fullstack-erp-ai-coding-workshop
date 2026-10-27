@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { RequireAuth } from '@/components/require-auth';
+import { AdjustmentsPage } from '@/routes/adjustments';
 import { HomePage } from '@/routes/home';
 import { InventoryPage } from '@/routes/inventory';
 import { LoginPage } from '@/routes/login';
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
           { path: 'suppliers', element: <SuppliersPage /> },
           { path: 'products', element: <ProductsPage /> },
           { path: 'inventory', element: <InventoryPage /> },
+          { path: 'adjustments', element: <AdjustmentsPage /> },
         ],
       },
     ],
