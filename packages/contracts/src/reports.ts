@@ -26,18 +26,23 @@ const CalendarDate = z.iso.date('วันที่ต้องอยู่ใ�
  * [from 00:00:00, to+1 day 00:00:00) in Asia/Bangkok. `storeId` is optional; a Store
  * employee is confined to their own store by the API regardless. Newest day first.
  */
+const DailySalesRangeShape = {
+  from: CalendarDate,
+  to: CalendarDate,
+  storeId: z.string().optional(),
+};
+
+/** The range must not end before it starts; shared by the screen and the CSV export. */
+const rangeIsOrdered = (q: { from: string; to: string }) => q.from <= q.to;
+const rangeOrderError = { message: 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น', path: ['to'] };
+
 export const DailySalesReportQuerySchema = z
   .object({
-    from: CalendarDate,
-    to: CalendarDate,
-    storeId: z.string().optional(),
+    ...DailySalesRangeShape,
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
   })
-  .refine((q) => q.from <= q.to, {
-    message: 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น',
-    path: ['to'],
-  });
+  .refine(rangeIsOrdered, rangeOrderError);
 export type DailySalesReportQuery = z.infer<typeof DailySalesReportQuerySchema>;
 
 /** One reporting day's confirmed-sales totals (RPT-01). */
@@ -57,6 +62,24 @@ export const DailySalesReportSchema = z.object({
   pageSize: z.number().int().min(1),
 });
 export type DailySalesReport = z.infer<typeof DailySalesReportSchema>;
+
+/**
+ * CSV export (RPT-04). Each export takes exactly the filters of its on-screen report and
+ * none of the pagination: it returns every matching row. The API applies the same role and
+ * store permission as the screen. The response is a `text/csv` file, UTF-8 with a BOM so
+ * spreadsheet software renders Thai text, and any cell a spreadsheet could read as a
+ * formula (starting with `=`, `+`, `-`, `@`, tab or carriage return) is neutralized.
+ */
+export const DailySalesExportQuerySchema = z.object(DailySalesRangeShape).refine(rangeIsOrdered, rangeOrderError);
+export type DailySalesExportQuery = z.infer<typeof DailySalesExportQuerySchema>;
+
+export const StockReportExportQuerySchema = StockReportQuerySchema.omit({
+  page: true,
+  pageSize: true,
+});
+export type StockReportExportQuery = z.infer<typeof StockReportExportQuerySchema>;
+
+export const CsvFileSchema = z.file();
 
 export const reportsContract = {
   stockOnHand: oc
@@ -86,4 +109,31 @@ export const reportsContract = {
     })
     .input(DailySalesReportQuerySchema)
     .output(DailySalesReportSchema),
+  exportDailySales: oc
+    .route({
+      method: 'GET',
+      path: '/reports/daily-sales/export',
+      summary: 'Daily sales report as a CSV file (UTF-8 with BOM), same filters as the screen',
+      tags: ['Reports'],
+    })
+    .input(DailySalesExportQuerySchema)
+    .output(CsvFileSchema),
+  exportStockOnHand: oc
+    .route({
+      method: 'GET',
+      path: '/reports/stock-on-hand/export',
+      summary: 'Stock-on-hand report as a CSV file (UTF-8 with BOM), same filters as the screen',
+      tags: ['Reports'],
+    })
+    .input(StockReportExportQuerySchema)
+    .output(CsvFileSchema),
+  exportLowStock: oc
+    .route({
+      method: 'GET',
+      path: '/reports/low-stock/export',
+      summary: 'Low-stock report as a CSV file (UTF-8 with BOM), same filters as the screen',
+      tags: ['Reports'],
+    })
+    .input(StockReportExportQuerySchema)
+    .output(CsvFileSchema),
 };
