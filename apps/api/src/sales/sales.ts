@@ -1,5 +1,5 @@
 import type { SaleLineInput, User } from '@erp/contracts';
-import { Prisma, type PrismaClient } from '@erp/database';
+import { Decimal, type Prisma, type PrismaClient } from '@erp/database';
 import { ORPCError } from '@orpc/nest';
 import { assertStoreScope } from '../auth/store-scope.js';
 import { nextDocumentNumber } from '../inventory/document-numbers.js';
@@ -68,7 +68,7 @@ async function priceLines(
     };
   });
 
-  const total = priced.reduce((sum, line) => sum.add(line.lineTotal), new Prisma.Decimal(0));
+  const total = priced.reduce((sum, line) => sum.add(line.lineTotal), new Decimal(0));
   return { lines: priced, total };
 }
 
