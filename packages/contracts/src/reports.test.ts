@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { contract } from './index.js';
 import {
+  CsvFileSchema,
+  DailySalesExportQuerySchema,
   DailySalesReportQuerySchema,
   DailySalesReportSchema,
+  StockReportExportQuerySchema,
   StockReportQuerySchema,
   StockReportSchema,
 } from './reports.js';
@@ -151,5 +154,54 @@ describe('daily sales report route (RPT-01)', () => {
       method: 'GET',
       path: '/reports/daily-sales',
     });
+  });
+});
+
+describe('DailySalesExportQuerySchema (RPT-04)', () => {
+  const base = { from: '2026-01-01', to: '2026-01-31' };
+
+  it('takes the same filters as the on-screen report, with no pagination', () => {
+    expect(DailySalesExportQuerySchema.parse({ ...base, storeId: 's1' })).toEqual({
+      ...base,
+      storeId: 's1',
+    });
+  });
+
+  it('rejects a missing, malformed or reversed date range like the screen does', () => {
+    expect(DailySalesExportQuerySchema.safeParse({ to: '2026-01-31' }).success).toBe(false);
+    expect(DailySalesExportQuerySchema.safeParse({ ...base, from: '01/01/2026' }).success).toBe(
+      false,
+    );
+    expect(
+      DailySalesExportQuerySchema.safeParse({ from: '2026-01-31', to: '2026-01-01' }).success,
+    ).toBe(false);
+  });
+});
+
+describe('StockReportExportQuerySchema (RPT-04)', () => {
+  it('takes the product search and store filter, with no pagination', () => {
+    expect(StockReportExportQuerySchema.parse({ search: ' SKU003 ', storeId: 's1' })).toEqual({
+      search: 'SKU003',
+      storeId: 's1',
+    });
+    expect(StockReportExportQuerySchema.parse({})).toEqual({});
+  });
+});
+
+describe('CsvFileSchema (RPT-04)', () => {
+  it('accepts a file and rejects plain text', () => {
+    const file = new File(['a,b'], 'report.csv', { type: 'text/csv; charset=utf-8' });
+    expect(CsvFileSchema.safeParse(file).success).toBe(true);
+    expect(CsvFileSchema.safeParse('a,b').success).toBe(false);
+  });
+});
+
+describe('CSV export routes (RPT-04)', () => {
+  it.each([
+    ['exportDailySales', '/reports/daily-sales/export'],
+    ['exportStockOnHand', '/reports/stock-on-hand/export'],
+    ['exportLowStock', '/reports/low-stock/export'],
+  ] as const)('exposes %s as GET %s', (route, path) => {
+    expect(contract.reports[route]['~orpc'].route).toMatchObject({ method: 'GET', path });
   });
 });

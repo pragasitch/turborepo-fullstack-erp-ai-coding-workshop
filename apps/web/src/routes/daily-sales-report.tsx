@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { DailySalesRow } from '@erp/contracts';
+import { ExportCsvButton } from '@/components/export-csv-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { orpc } from '@/lib/orpc';
+import { client, orpc } from '@/lib/orpc';
 
 /** Days per page; the contract caps pageSize at 100 (≈ three months per page). */
 const PAGE_SIZE = 100;
@@ -183,7 +184,16 @@ export function DailySalesReportPage() {
             </div>
           </div>
           {ready ? (
-            <ReportTable from={from} to={to} storeId={storeId} />
+            <>
+              <ExportCsvButton
+                label="ส่งออก CSV"
+                fallbackName={`daily-sales_${from}_${to}.csv`}
+                exportFile={() =>
+                  client.reports.exportDailySales({ from, to, storeId: storeId || undefined })
+                }
+              />
+              <ReportTable from={from} to={to} storeId={storeId} />
+            </>
           ) : (
             <p className="text-muted-foreground">เลือกช่วงวันที่เพื่อดูรายงาน</p>
           )}
