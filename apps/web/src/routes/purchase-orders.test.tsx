@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RequireAuth } from '@/components/require-auth';
@@ -17,6 +17,13 @@ const officer = {
   storeId: null,
 };
 const admin = { ...officer, id: 'u2', role: 'ADMINISTRATOR' };
+const manager = {
+  ...officer,
+  id: 'u3',
+  email: 'manager@erp.local',
+  name: 'Manager',
+  role: 'MANAGER',
+};
 
 const suppliers = {
   items: [
@@ -290,6 +297,222 @@ describe('PurchaseOrdersPage (PO-01)', () => {
   });
 });
 
+const requestsTo = (fetch: ReturnType<typeof mockApi>, method: string, path: string) =>
+  fetch.mock.calls
+    .map(([request]) => request as Request)
+    .filter(
+      (request) => request.method === method && new URL(request.url).pathname === `/api${path}`,
+    );
+
+const listApi = (user: unknown, orders: unknown[], extra: Record<string, unknown> = {}) => ({
+  'GET /auth/me': { user },
+  'GET /suppliers': suppliers,
+  'GET /stores': stores,
+  'GET /products': products,
+  'GET /purchase-orders': pageOf(orders),
+  ...extra,
+});
+
+describe('PurchaseOrdersPage approval workflow (PO-02, PO-03, PO-04)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('shows each order with its Thai status', async () => {
+    mockApi(
+      listApi(manager, [
+        po({ id: 'a', status: 'DRAFT' }),
+        po({ id: 'b', status: 'PENDING_APPROVAL' }),
+        po({ id: 'c', status: 'APPROVED' }),
+        po({ id: 'd', status: 'REJECTED', decisionReason: 'ราคาสูงเกินไป' }),
+        po({ id: 'e', status: 'CANCELLED', decisionReason: 'สั่งผิด' }),
+      ]),
+    );
+    renderPage();
+
+    const rows = await screen.findAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('ฉบับร่าง');
+    expect(rows[1]).toHaveTextContent('รออนุมัติ');
+    expect(rows[2]).toHaveTextContent('อนุมัติแล้ว');
+    expect(rows[3]).toHaveTextContent('ไม่อนุมัติ');
+    expect(rows[3]).toHaveTextContent('เหตุผล: ราคาสูงเกินไป');
+    expect(rows[4]).toHaveTextContent('ยกเลิกแล้ว');
+  });
+
+  it('lets the purchasing officer submit a draft for approval', async () => {
+    const fetch = mockApi(
+      listApi(officer, [po()], {
+        'POST /purchase-orders/po1/submit': po({ status: 'PENDING_APPROVAL' }),
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ส่งขออนุมัติ' }));
+
+    await waitFor(() =>
+      expect(requestsTo(fetch, 'POST', '/purchase-orders/po1/submit')).toHaveLength(1),
+    );
+    // The list is read again so the new status shows.
+    await waitFor(() =>
+      expect(requestsTo(fetch, 'GET', '/purchase-orders').length).toBeGreaterThan(1),
+    );
+  });
+
+  it('lets a manager approve a pending order, but only with a reason', async () => {
+    const fetch = mockApi(
+      listApi(manager, [po({ status: 'PENDING_APPROVAL' })], {
+        'POST /purchase-orders/po1/approve': po({ status: 'APPROVED' }),
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'อนุมัติใบสั่งซื้อ' }));
+    const confirm = screen.getByRole('button', { name: 'ยืนยันการอนุมัติ' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('เหตุผล'), { target: { value: '   ' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('เหตุผล'), { target: { value: 'ราคาเหมาะสม' } });
+    fireEvent.click(confirm);
+
+    await waitFor(() =>
+      expect(requestsTo(fetch, 'POST', '/purchase-orders/po1/approve')).toHaveLength(1),
+    );
+    expect(
+      await requestsTo(fetch, 'POST', '/purchase-orders/po1/approve')[0]!.clone().json(),
+    ).toMatchObject({ reason: 'ราคาเหมาะสม' });
+    await waitFor(() => expect(screen.queryByLabelText('เหตุผล')).not.toBeInTheDocument());
+  });
+
+  it('lets a manager reject a pending order with a reason', async () => {
+    const fetch = mockApi(
+      listApi(manager, [po({ status: 'PENDING_APPROVAL' })], {
+        'POST /purchase-orders/po1/reject': po({ status: 'REJECTED' }),
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ปฏิเสธใบสั่งซื้อ' }));
+    fireEvent.change(screen.getByLabelText('เหตุผล'), { target: { value: 'ราคาสูงเกินไป' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการปฏิเสธ' }));
+
+    await waitFor(() =>
+      expect(requestsTo(fetch, 'POST', '/purchase-orders/po1/reject')).toHaveLength(1),
+    );
+    expect(
+      await requestsTo(fetch, 'POST', '/purchase-orders/po1/reject')[0]!.clone().json(),
+    ).toMatchObject({ reason: 'ราคาสูงเกินไป' });
+  });
+
+  it('shows the Thai error when the API refuses an illegal transition', async () => {
+    mockApi(
+      listApi(manager, [po({ status: 'PENDING_APPROVAL' })], {
+        'POST /purchase-orders/po1/approve': envelope({
+          code: 'PURCHASE_ORDER_INVALID_TRANSITION',
+          message: 'ไม่สามารถดำเนินการนี้กับใบสั่งซื้อในสถานะปัจจุบันได้',
+        }),
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'อนุมัติใบสั่งซื้อ' }));
+    fireEvent.change(screen.getByLabelText('เหตุผล'), { target: { value: 'ok' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการอนุมัติ' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'ไม่สามารถดำเนินการนี้กับใบสั่งซื้อในสถานะปัจจุบันได้',
+    );
+  });
+
+  it('offers a manager no decision on an order that is not pending', async () => {
+    mockApi(
+      listApi(manager, [
+        po({ id: 'a', status: 'DRAFT' }),
+        po({ id: 'b', status: 'APPROVED' }),
+        po({ id: 'c', status: 'REJECTED' }),
+      ]),
+    );
+    renderPage();
+
+    await screen.findAllByRole('listitem');
+    expect(screen.queryByRole('button', { name: 'อนุมัติใบสั่งซื้อ' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ปฏิเสธใบสั่งซื้อ' })).not.toBeInTheDocument();
+    // An Approved or Rejected order cannot be cancelled either; a Draft can.
+    expect(screen.getAllByRole('button', { name: 'ยกเลิกใบสั่งซื้อ' })).toHaveLength(1);
+  });
+
+  it('offers an officer submit only on a draft, and no approval at all', async () => {
+    mockApi(
+      listApi(officer, [
+        po({ id: 'a', status: 'DRAFT' }),
+        po({ id: 'b', status: 'PENDING_APPROVAL' }),
+        po({ id: 'c', status: 'APPROVED' }),
+      ]),
+    );
+    renderPage();
+
+    const rows = await screen.findAllByRole('listitem');
+    expect(within(rows[0]!).getByRole('button', { name: 'ส่งขออนุมัติ' })).toBeInTheDocument();
+    expect(within(rows[1]!).queryByRole('button', { name: 'ส่งขออนุมัติ' })).toBeNull();
+    expect(within(rows[2]!).queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'อนุมัติใบสั่งซื้อ' })).not.toBeInTheDocument();
+  });
+
+  it('lets an officer cancel only the orders they created, with a reason', async () => {
+    const fetch = mockApi(
+      listApi(
+        officer,
+        [po({ id: 'mine', createdById: 'u1' }), po({ id: 'theirs', createdById: 'someone-else' })],
+        { 'POST /purchase-orders/mine/cancel': po({ id: 'mine', status: 'CANCELLED' }) },
+      ),
+    );
+    renderPage();
+
+    const cancelButtons = await screen.findAllByRole('button', { name: 'ยกเลิกใบสั่งซื้อ' });
+    expect(cancelButtons).toHaveLength(1);
+    fireEvent.click(cancelButtons[0]!);
+    expect(screen.getByRole('button', { name: 'ยืนยันการยกเลิก' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('เหตุผล'), { target: { value: 'สั่งผิดผู้ขาย' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการยกเลิก' }));
+
+    await waitFor(() =>
+      expect(requestsTo(fetch, 'POST', '/purchase-orders/mine/cancel')).toHaveLength(1),
+    );
+    expect(
+      await requestsTo(fetch, 'POST', '/purchase-orders/mine/cancel')[0]!.clone().json(),
+    ).toMatchObject({ reason: 'สั่งผิดผู้ขาย' });
+  });
+
+  it('takes the edit button away once the saved draft has been submitted', async () => {
+    const fetch = mockApi({
+      ...listApi(officer, [po()]),
+      'POST /purchase-orders': po(),
+      'POST /purchase-orders/po1/submit': po({ status: 'PENDING_APPROVAL' }),
+    });
+    renderPage();
+
+    await screen.findByLabelText('ผู้ขาย');
+    pickHeader();
+    await addLine(/SKU001/, '2', '10.00');
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกใบสั่งซื้อ' }));
+    expect(await screen.findByRole('button', { name: 'แก้ไขใบสั่งซื้อ' })).toBeInTheDocument();
+
+    // From now on the list reports the order as pending approval.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (request: Request) => {
+        const path = new URL(request.url).pathname.replace(/^\/api/, '');
+        if (request.method === 'GET' && path === '/purchase-orders') {
+          return Response.json(pageOf([po({ status: 'PENDING_APPROVAL' })]));
+        }
+        return fetch(request);
+      }),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'ส่งขออนุมัติ' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'แก้ไขใบสั่งซื้อ' })).not.toBeInTheDocument(),
+    );
+  });
+});
+
 describe('navigation', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -335,6 +558,20 @@ describe('navigation', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'ใบสั่งซื้อ' })).toBeInTheDocument(),
     );
+  });
+
+  it('links a manager to the purchase orders page, with no order form', async () => {
+    mockApi({
+      'GET /auth/me': { user: manager },
+      'GET /health': { status: 'ok' },
+      'GET /purchase-orders': pageOf([po({ status: 'PENDING_APPROVAL' })]),
+    });
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('link', { name: 'ใบสั่งซื้อ' }));
+
+    expect(await screen.findByRole('button', { name: 'อนุมัติใบสั่งซื้อ' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('ผู้ขาย')).not.toBeInTheDocument();
   });
 
   it('does not offer the purchase orders page to an administrator', async () => {

@@ -8,6 +8,7 @@ import {
   PURCHASE_ORDER_INCLUDE,
   purchaseOrderNotFound,
   type PurchaseOrderRecord,
+  transitionPurchaseOrder,
   updateDraftPurchaseOrder,
 } from './purchase-orders.js';
 
@@ -33,6 +34,8 @@ function toPurchaseOrder(po: PurchaseOrderRecord) {
     expectedReceiptDate: toDateOnly(po.expectedReceiptDate),
     total: money(po.total),
     createdAt: po.createdAt.toISOString(),
+    decisionReason: po.decisionReason ?? null,
+    decidedAt: po.decidedAt?.toISOString() ?? null,
     lines: po.lines.map((line) => ({
       id: line.id,
       productId: line.productId,
@@ -47,15 +50,16 @@ function toPurchaseOrder(po: PurchaseOrderRecord) {
 }
 
 /**
- * Purchase order drafts (PO-01). Only a Purchasing officer may create, edit or view
- * drafts; the global `AuthGuard` and `@Roles` enforce it (NFR-01). All line rules and
- * pricing live in `purchase-orders.ts`.
+ * Purchase orders (PO-01..PO-04). Only a Purchasing officer may create, edit and submit
+ * drafts; only a Manager may approve or reject; officers and managers may view and cancel.
+ * The global `AuthGuard` and `@Roles` enforce it (NFR-01). Line rules, pricing and the
+ * state machine live in `purchase-orders.ts`.
  */
 @Controller()
 export class PurchaseOrdersController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Roles('PURCHASING_OFFICER')
+  @Roles('PURCHASING_OFFICER', 'MANAGER')
   @Implement(contract.purchaseOrders.list)
   list(@CurrentUser() _user: User) {
     return implement(contract.purchaseOrders.list).handler(async ({ input }) => {
@@ -73,7 +77,7 @@ export class PurchaseOrdersController {
     });
   }
 
-  @Roles('PURCHASING_OFFICER')
+  @Roles('PURCHASING_OFFICER', 'MANAGER')
   @Implement(contract.purchaseOrders.get)
   get(@CurrentUser() _user: User) {
     return implement(contract.purchaseOrders.get).handler(async ({ input }) => {
@@ -101,5 +105,43 @@ export class PurchaseOrdersController {
       const { id, ...header } = input;
       return toPurchaseOrder(await updateDraftPurchaseOrder(this.prisma, user, id, header));
     });
+  }
+
+  @Roles('PURCHASING_OFFICER')
+  @Implement(contract.purchaseOrders.submit)
+  submit(@CurrentUser() user: User) {
+    return implement(contract.purchaseOrders.submit).handler(async ({ input }) =>
+      toPurchaseOrder(await transitionPurchaseOrder(this.prisma, user, input.id, 'submit')),
+    );
+  }
+
+  @Roles('MANAGER')
+  @Implement(contract.purchaseOrders.approve)
+  approve(@CurrentUser() user: User) {
+    return implement(contract.purchaseOrders.approve).handler(async ({ input }) =>
+      toPurchaseOrder(
+        await transitionPurchaseOrder(this.prisma, user, input.id, 'approve', input.reason),
+      ),
+    );
+  }
+
+  @Roles('MANAGER')
+  @Implement(contract.purchaseOrders.reject)
+  reject(@CurrentUser() user: User) {
+    return implement(contract.purchaseOrders.reject).handler(async ({ input }) =>
+      toPurchaseOrder(
+        await transitionPurchaseOrder(this.prisma, user, input.id, 'reject', input.reason),
+      ),
+    );
+  }
+
+  @Roles('PURCHASING_OFFICER', 'MANAGER')
+  @Implement(contract.purchaseOrders.cancel)
+  cancel(@CurrentUser() user: User) {
+    return implement(contract.purchaseOrders.cancel).handler(async ({ input }) =>
+      toPurchaseOrder(
+        await transitionPurchaseOrder(this.prisma, user, input.id, 'cancel', input.reason),
+      ),
+    );
   }
 }

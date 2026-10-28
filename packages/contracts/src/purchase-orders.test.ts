@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ApprovePurchaseOrderSchema,
+  CancelPurchaseOrderSchema,
   CreatePurchaseOrderSchema,
   PurchaseOrderSchema,
+  PurchaseOrderStatusSchema,
+  RejectPurchaseOrderSchema,
+  SubmitPurchaseOrderSchema,
   UpdatePurchaseOrderSchema,
 } from './purchase-orders.js';
 
@@ -138,7 +143,74 @@ describe('PurchaseOrderSchema', () => {
     expect(PurchaseOrderSchema.safeParse({ ...draft, total: '20' }).success).toBe(false);
   });
 
-  it('only knows the DRAFT status in this release', () => {
-    expect(PurchaseOrderSchema.safeParse({ ...draft, status: 'APPROVED' }).success).toBe(false);
+  it('carries the manager decision reason and time, null until decided (PO-03)', () => {
+    expect(
+      PurchaseOrderSchema.safeParse({
+        ...draft,
+        status: 'REJECTED',
+        decisionReason: 'ราคาสูงเกินไป',
+        decidedAt: '2026-01-03T00:00:00.000Z',
+      }).success,
+    ).toBe(true);
+    expect(PurchaseOrderSchema.safeParse({ ...draft, status: 'DRAFT' }).success).toBe(true);
+  });
+
+  it('rejects a status outside the seven agreed ones', () => {
+    expect(PurchaseOrderSchema.safeParse({ ...draft, status: 'SHIPPED' }).success).toBe(false);
+  });
+});
+
+describe('PurchaseOrderStatusSchema (PO-02)', () => {
+  it.each([
+    'DRAFT',
+    'PENDING_APPROVAL',
+    'APPROVED',
+    'PARTIALLY_RECEIVED',
+    'COMPLETED',
+    'REJECTED',
+    'CANCELLED',
+  ])('knows %s', (status) => {
+    expect(PurchaseOrderStatusSchema.safeParse(status).success).toBe(true);
+  });
+
+  it('knows nothing else', () => {
+    expect(PurchaseOrderStatusSchema.options).toHaveLength(7);
+  });
+});
+
+describe('approve / reject / cancel need a reason (PO-03, PO-04)', () => {
+  it.each([
+    ['approve', ApprovePurchaseOrderSchema],
+    ['reject', RejectPurchaseOrderSchema],
+    ['cancel', CancelPurchaseOrderSchema],
+  ])('%s accepts an id and a reason', (_name, schema) => {
+    expect(schema.safeParse({ id: 'po1', reason: 'เหตุผลที่ชัดเจน' }).success).toBe(true);
+  });
+
+  it.each([
+    ['approve', ApprovePurchaseOrderSchema],
+    ['reject', RejectPurchaseOrderSchema],
+    ['cancel', CancelPurchaseOrderSchema],
+  ])('%s rejects a missing, empty or blank reason', (_name, schema) => {
+    expect(schema.safeParse({ id: 'po1' }).success).toBe(false);
+    expect(schema.safeParse({ id: 'po1', reason: '' }).success).toBe(false);
+    expect(schema.safeParse({ id: 'po1', reason: '   ' }).success).toBe(false);
+  });
+
+  it('explains a missing reason in Thai', () => {
+    const result = ApprovePurchaseOrderSchema.safeParse({ id: 'po1', reason: ' ' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe('ต้องระบุเหตุผล');
+  });
+
+  it('requires the id', () => {
+    expect(ApprovePurchaseOrderSchema.safeParse({ reason: 'ok' }).success).toBe(false);
+  });
+});
+
+describe('SubmitPurchaseOrderSchema (PO-03)', () => {
+  it('takes only the id, no reason', () => {
+    expect(SubmitPurchaseOrderSchema.safeParse({ id: 'po1' }).success).toBe(true);
+    expect(SubmitPurchaseOrderSchema.safeParse({}).success).toBe(false);
   });
 });
