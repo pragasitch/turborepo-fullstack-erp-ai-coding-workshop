@@ -19,7 +19,10 @@ test.describe('purchase order drafts', () => {
     }
 
     async function addLine(sku: string, quantity: string, unitPrice: string) {
-      const option = page.getByRole('option', { name: new RegExp(sku) });
+      // Match the SKU exactly: other e2e files leave products whose SKU starts with a
+      // seeded one (e.g. "SKU001-<timestamp>"), so a loose /SKU001/ would match two options.
+      // Option text is "<sku> <name>", so anchor to the SKU followed by a space.
+      const option = page.getByRole('option', { name: new RegExp(`^${sku} `) });
       await expect(option).toHaveCount(1);
       await page
         .getByLabel('สินค้า', { exact: true })
