@@ -70,7 +70,9 @@ export type DailySalesReport = z.infer<typeof DailySalesReportSchema>;
  * spreadsheet software renders Thai text, and any cell a spreadsheet could read as a
  * formula (starting with `=`, `+`, `-`, `@`, tab or carriage return) is neutralized.
  */
-export const DailySalesExportQuerySchema = z.object(DailySalesRangeShape).refine(rangeIsOrdered, rangeOrderError);
+export const DailySalesExportQuerySchema = z
+  .object(DailySalesRangeShape)
+  .refine(rangeIsOrdered, rangeOrderError);
 export type DailySalesExportQuery = z.infer<typeof DailySalesExportQuerySchema>;
 
 export const StockReportExportQuerySchema = StockReportQuerySchema.omit({

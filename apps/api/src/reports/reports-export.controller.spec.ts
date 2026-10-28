@@ -185,7 +185,9 @@ describe('ReportsController CSV formula-injection guard (RPT-04)', () => {
   });
 
   it('quotes a cell with a comma, a quote or a line break so columns stay aligned', async () => {
-    expect(await exportedNameCell('ดินสอ, 2B')).toBe('SKU003,"ดินสอ, 2B",ถุง,B01,สาขาเซ็นทรัล,0,3,ใช่');
+    expect(await exportedNameCell('ดินสอ, 2B')).toBe(
+      'SKU003,"ดินสอ, 2B",ถุง,B01,สาขาเซ็นทรัล,0,3,ใช่',
+    );
     expect(await exportedNameCell('ปากกา "ดำ"')).toBe(
       'SKU003,"ปากกา ""ดำ""",ถุง,B01,สาขาเซ็นทรัล,0,3,ใช่',
     );

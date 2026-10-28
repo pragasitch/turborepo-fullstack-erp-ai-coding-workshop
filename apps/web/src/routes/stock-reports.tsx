@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
+import { ExportCsvButton } from '@/components/export-csv-button';
 import { StockLevelsTable } from '@/components/stock-levels-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { orpc } from '@/lib/orpc';
+import { client, orpc } from '@/lib/orpc';
 
 type ReportKind = 'stockOnHand' | 'lowStock';
 
@@ -15,12 +16,16 @@ const reportText = {
     description: 'ยอดคงเหลือของทุกสินค้าในแต่ละสาขา รวมสินค้าที่คงเหลือเป็นศูนย์',
     empty: 'ไม่พบสินค้าที่ตรงกับเงื่อนไข',
     failed: 'ไม่สามารถโหลดรายงานสต็อกคงเหลือได้ กรุณาลองใหม่อีกครั้ง',
+    exportLabel: 'ส่งออก CSV สต็อกคงเหลือ',
+    exportName: 'stock-on-hand.csv',
   },
   lowStock: {
     title: 'สินค้าสต็อกต่ำ',
     description: 'สินค้าที่ยอดคงเหลือน้อยกว่าหรือเท่ากับจุดสั่งซื้อของสาขา',
     empty: 'ไม่มีสินค้าสต็อกต่ำ',
     failed: 'ไม่สามารถโหลดรายงานสินค้าสต็อกต่ำได้ กรุณาลองใหม่อีกครั้ง',
+    exportLabel: 'ส่งออก CSV สินค้าสต็อกต่ำ',
+    exportName: 'low-stock.csv',
   },
 } as const;
 
@@ -97,7 +102,17 @@ function Report({ kind, search }: { kind: ReportKind; search: string }) {
         </h2>
         <CardDescription>{text.description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <ExportCsvButton
+          label={text.exportLabel}
+          fallbackName={text.exportName}
+          exportFile={() => {
+            const input = { search: search || undefined };
+            return kind === 'lowStock'
+              ? client.reports.exportLowStock(input)
+              : client.reports.exportStockOnHand(input);
+          }}
+        />
         {/* Keyed by the search so a new search starts again on page 1. */}
         <ReportBody key={search} kind={kind} search={search} />
       </CardContent>

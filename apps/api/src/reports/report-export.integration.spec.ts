@@ -29,8 +29,7 @@ async function text(file: File): Promise<string> {
   return new TextDecoder('utf-8', { ignoreBOM: true }).decode(await bytes(file));
 }
 
-const STOCK_HEADER =
-  'รหัสสินค้า,ชื่อสินค้า,หน่วย,รหัสสาขา,ชื่อสาขา,คงเหลือ,จุดสั่งซื้อ,สต็อกต่ำ';
+const STOCK_HEADER = 'รหัสสินค้า,ชื่อสินค้า,หน่วย,รหัสสาขา,ชื่อสาขา,คงเหลือ,จุดสั่งซื้อ,สต็อกต่ำ';
 
 describe('stock report CSV export against Postgres (RPT-04)', () => {
   it('writes the fixture products in Thai, UTF-8 with a BOM', async () => {
@@ -57,7 +56,9 @@ describe('stock report CSV export against Postgres (RPT-04)', () => {
     const manager = await signedIn('manager01@erp.local');
     const b01 = await db.store('B01');
 
-    const csv = await text(await call(controller().exportStockOnHand(manager), { storeId: b01.id }));
+    const csv = await text(
+      await call(controller().exportStockOnHand(manager), { storeId: b01.id }),
+    );
 
     expect(csv).toContain(`SKU002,"'=HYPERLINK(""http://evil.example"",""คลิก"")",แพ็ค,`);
     expect(csv).not.toMatch(/(^|,|\r\n)=/);
