@@ -16,6 +16,14 @@ export function RootLayout() {
               <Link to="/inventory" className="text-muted-foreground hover:text-foreground">
                 สต็อก
               </Link>
+              {/* Store employees sell; managers and administrators view (@Roles on the API). */}
+              {(user?.role === 'STORE_EMPLOYEE' ||
+                user?.role === 'MANAGER' ||
+                user?.role === 'ADMINISTRATOR') && (
+                <Link to="/sales" className="text-muted-foreground hover:text-foreground">
+                  ขายสินค้า
+                </Link>
+              )}
               {/* Stock reports follow the same permission as the stock screen (RPT-02). */}
               <Link to="/reports/stock" className="text-muted-foreground hover:text-foreground">
                 รายงานสต็อก

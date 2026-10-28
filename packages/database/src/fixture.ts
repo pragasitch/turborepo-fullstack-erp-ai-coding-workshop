@@ -135,7 +135,7 @@ export async function seedSection81(prisma: PrismaClient) {
  */
 export async function resetToSection81Fixture(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE "StockMovement", "StockBalance", "DocumentSequence",
+    `TRUNCATE TABLE "SaleLine", "Sale", "StockMovement", "StockBalance", "DocumentSequence",
        "ProductReorderThreshold", "Product", "Supplier", "User", "Store"
      RESTART IDENTITY CASCADE`,
   );
