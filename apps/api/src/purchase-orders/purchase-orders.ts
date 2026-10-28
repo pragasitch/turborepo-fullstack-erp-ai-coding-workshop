@@ -107,7 +107,19 @@ async function lockPurchaseOrder(
   return tx.purchaseOrder.findUniqueOrThrow({ where: { id }, include: PURCHASE_ORDER_INCLUDE });
 }
 
-/** Replace the header and lines of a draft purchase order (PO-01). */
+type Status = PurchaseOrderRecord['status'];
+
+/** PO-03: once an order leaves Draft its header and lines are frozen. */
+function purchaseOrderNotEditable() {
+  return new ORPCError('CONFLICT', {
+    data: {
+      code: 'PURCHASE_ORDER_NOT_EDITABLE',
+      message: 'แก้ไขได้เฉพาะใบสั่งซื้อฉบับร่างเท่านั้น',
+    },
+  });
+}
+
+/** Replace the header and lines of a draft purchase order (PO-01, PO-03). */
 export async function updateDraftPurchaseOrder(
   prisma: PrismaClient,
   _actor: User,
@@ -115,7 +127,8 @@ export async function updateDraftPurchaseOrder(
   input: PurchaseOrderHeaderInput,
 ): Promise<PurchaseOrderRecord> {
   return prisma.$transaction(async (tx) => {
-    await lockPurchaseOrder(tx, id);
+    const current = await lockPurchaseOrder(tx, id);
+    if (current.status !== 'DRAFT') throw purchaseOrderNotEditable();
     const { supplierId, storeId, lines, total } = await resolveDraft(tx, input);
     await tx.purchaseOrderLine.deleteMany({ where: { purchaseOrderId: id } });
     return tx.purchaseOrder.update({
@@ -129,5 +142,91 @@ export async function updateDraftPurchaseOrder(
       },
       include: PURCHASE_ORDER_INCLUDE,
     });
+  });
+}
+
+export type PurchaseOrderAction = 'submit' | 'approve' | 'reject' | 'cancel';
+
+/**
+ * The state machine (PO-02): every legal transition and nothing else. Receiving, which
+ * moves Approved and Partially Received orders on, belongs to the goods-receipt ticket.
+ */
+const TRANSITIONS: Record<PurchaseOrderAction, { from: readonly Status[]; to: Status }> = {
+  submit: { from: ['DRAFT'], to: 'PENDING_APPROVAL' },
+  approve: { from: ['PENDING_APPROVAL'], to: 'APPROVED' },
+  reject: { from: ['PENDING_APPROVAL'], to: 'REJECTED' },
+  cancel: { from: ['DRAFT', 'PENDING_APPROVAL'], to: 'CANCELLED' },
+};
+
+/** Approval decisions are audited (NFR-03): SUCCESS when approved, REJECTED when rejected. */
+const AUDIT_OUTCOME = { approve: 'SUCCESS', reject: 'REJECTED' } as const;
+
+function invalidTransition() {
+  return new ORPCError('CONFLICT', {
+    data: {
+      code: 'PURCHASE_ORDER_INVALID_TRANSITION',
+      message: 'ไม่สามารถดำเนินการนี้กับใบสั่งซื้อในสถานะปัจจุบันได้',
+    },
+  });
+}
+
+function cancelForbidden() {
+  return new ORPCError('FORBIDDEN', {
+    data: {
+      code: 'PURCHASE_ORDER_CANCEL_FORBIDDEN',
+      message: 'เฉพาะผู้สร้างใบสั่งซื้อหรือผู้จัดการเท่านั้นที่ยกเลิกได้',
+    },
+  });
+}
+
+/**
+ * Move one purchase order along the state machine (PO-02..PO-04) in one transaction.
+ * The row is locked first, so two managers deciding at once cannot both win. An illegal
+ * move throws 409 and writes nothing. Approve and reject record the manager's reason on
+ * the order and append an audit row (NFR-03); none of this touches stock.
+ */
+export async function transitionPurchaseOrder(
+  prisma: PrismaClient,
+  actor: User,
+  id: string,
+  action: PurchaseOrderAction,
+  reason?: string,
+): Promise<PurchaseOrderRecord> {
+  return prisma.$transaction(async (tx) => {
+    const current = await lockPurchaseOrder(tx, id);
+
+    // PO-04: a purchasing officer may cancel only an order they created; a manager any.
+    if (action === 'cancel' && actor.role !== 'MANAGER' && current.createdById !== actor.id) {
+      throw cancelForbidden();
+    }
+
+    const { from, to } = TRANSITIONS[action];
+    if (!from.includes(current.status)) throw invalidTransition();
+
+    const decided = action !== 'submit';
+    const updated = await tx.purchaseOrder.update({
+      where: { id },
+      data: {
+        status: to,
+        ...(decided
+          ? { decisionReason: reason, decidedById: actor.id, decidedAt: new Date() }
+          : {}),
+      },
+      include: PURCHASE_ORDER_INCLUDE,
+    });
+
+    if (action === 'approve' || action === 'reject') {
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: 'PO_APPROVAL',
+          sourceDocumentType: 'PURCHASE_ORDER',
+          sourceDocumentId: id,
+          outcome: AUDIT_OUTCOME[action],
+          detail: reason,
+        },
+      });
+    }
+    return updated;
   });
 }
