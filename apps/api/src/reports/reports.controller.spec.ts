@@ -171,7 +171,11 @@ describe('ReportsController daily sales report (RPT-01)', () => {
     const { controller } = dailyController([], 0);
 
     await expect(
-      call((await controller).dailySales(manager), { ...dailyInput, from: '2026-02-01', to: '2026-02-01' }),
+      call((await controller).dailySales(manager), {
+        ...dailyInput,
+        from: '2026-02-01',
+        to: '2026-02-01',
+      }),
     ).resolves.toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
   });
 

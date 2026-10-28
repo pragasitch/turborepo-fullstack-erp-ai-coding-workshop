@@ -87,10 +87,12 @@ describe('DailySalesReportQuerySchema (RPT-01, Section 6.2)', () => {
   });
 
   it('rejects a malformed date', () => {
-    expect(DailySalesReportQuerySchema.safeParse({ from: '01/01/2026', to: '2026-01-31' }).success).toBe(
+    expect(
+      DailySalesReportQuerySchema.safeParse({ from: '01/01/2026', to: '2026-01-31' }).success,
+    ).toBe(false);
+    expect(DailySalesReportQuerySchema.safeParse({ ...base, from: 'not-a-date' }).success).toBe(
       false,
     );
-    expect(DailySalesReportQuerySchema.safeParse({ ...base, from: 'not-a-date' }).success).toBe(false);
   });
 
   it('rejects a range whose end is before its start', () => {
@@ -125,9 +127,10 @@ describe('DailySalesReportSchema (RPT-01)', () => {
   });
 
   it('keeps the total amount as a two-decimal string', () => {
-    expect(DailySalesReportSchema.safeParse({ ...payload, items: [{ ...dayRow, totalAmount: 465 }] }).success).toBe(
-      false,
-    );
+    expect(
+      DailySalesReportSchema.safeParse({ ...payload, items: [{ ...dayRow, totalAmount: 465 }] })
+        .success,
+    ).toBe(false);
     expect(
       DailySalesReportSchema.safeParse({ ...payload, items: [{ ...dayRow, totalAmount: '465' }] })
         .success,

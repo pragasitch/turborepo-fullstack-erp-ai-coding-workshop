@@ -123,9 +123,9 @@ describe('DailySalesReportPage (RPT-01, AC-08)', () => {
     renderPage();
 
     // The query client retries a failed request once before giving up.
-    expect(
-      await screen.findByRole('alert', {}, { timeout: 4000 }),
-    ).toHaveTextContent('ไม่สามารถโหลดรายงานการขายได้ กรุณาลองใหม่อีกครั้ง');
+    expect(await screen.findByRole('alert', {}, { timeout: 4000 })).toHaveTextContent(
+      'ไม่สามารถโหลดรายงานการขายได้ กรุณาลองใหม่อีกครั้ง',
+    );
   });
 });
 
