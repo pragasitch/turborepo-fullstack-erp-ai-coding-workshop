@@ -149,17 +149,20 @@ describe('StoresController', () => {
  */
 describe('StoresController role enforcement', () => {
   const reflector = new Reflector();
+  const rolesOf = async (method: 'list' | 'create' | 'update') => {
+    const controller = await createController({});
+    return reflector.get<string[]>(
+      ROLES_KEY,
+      Object.getPrototypeOf(controller)[method] as () => unknown,
+    );
+  };
 
-  it.each(['list', 'create', 'update'] as const)(
-    'restricts %s to ADMINISTRATOR',
-    async (method) => {
-      const controller = await createController({});
-      const roles = reflector.get<string[]>(
-        ROLES_KEY,
-        Object.getPrototypeOf(controller)[method] as () => unknown,
-      );
+  it.each(['create', 'update'] as const)('restricts %s to ADMINISTRATOR', async (method) => {
+    expect(await rolesOf(method)).toEqual(['ADMINISTRATOR']);
+  });
 
-      expect(roles).toEqual(['ADMINISTRATOR']);
-    },
-  );
+  // A Purchasing officer must read stores to pick a destination for a purchase order (PO-01).
+  it('lets an administrator or a purchasing officer list', async () => {
+    expect(await rolesOf('list')).toEqual(['ADMINISTRATOR', 'PURCHASING_OFFICER']);
+  });
 });

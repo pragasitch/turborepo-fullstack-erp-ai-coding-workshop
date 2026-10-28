@@ -22,21 +22,22 @@ enum Role {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  email          String          @unique
-  name           String
+  id                    String          @id @default(cuid())
+  email                 String          @unique
+  name                  String
   /// Written by hashPassword() from @erp/database. Never returned by the API.
-  passwordHash   String
-  role           Role            @default(STORE_EMPLOYEE)
+  passwordHash          String
+  role                  Role            @default(STORE_EMPLOYEE)
   /// Store assignment (Section 2). Required for STORE_EMPLOYEE, null for other roles.
-  storeId        String?
-  store          Store?          @relation(fields: [storeId], references: [id])
-  stockMovements StockMovement[]
-  auditLogs      AuditLog[]
-  createdSales   Sale[]          @relation("SaleCreatedBy")
-  confirmedSales Sale[]          @relation("SaleConfirmedBy")
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  storeId               String?
+  store                 Store?          @relation(fields: [storeId], references: [id])
+  stockMovements        StockMovement[]
+  auditLogs             AuditLog[]
+  createdSales          Sale[]          @relation("SaleCreatedBy")
+  confirmedSales        Sale[]          @relation("SaleConfirmedBy")
+  createdPurchaseOrders PurchaseOrder[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 }
 
 /// Store master data (MD-03). `code` is unique; the list is ordered newest-first.
@@ -49,6 +50,7 @@ model Store {
   stockBalances     StockBalance[]
   stockMovements    StockMovement[]
   sales             Sale[]
+  purchaseOrders    PurchaseOrder[]
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
 }
@@ -56,34 +58,36 @@ model Store {
 /// Supplier master data (MD-03). `code` is unique; contact details are optional.
 /// The list is ordered newest-first.
 model Supplier {
-  id            String   @id @default(cuid())
-  code          String   @unique
-  name          String
-  contactPerson String?
-  phone         String?
-  email         String?
-  address       String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String          @id @default(cuid())
+  code           String          @unique
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  address        String?
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 /// Product master data (MD-01, MD-02). `sku` is unique across the organization and
 /// immutable once referenced by a transaction. `sellingPrice` is money (two decimals).
 /// Deactivation keeps the product searchable but blocks it from new documents.
 model Product {
-  id                String                    @id @default(cuid())
-  sku               String                    @unique
-  name              String
-  category          String
-  unit              String
-  sellingPrice      Decimal                   @db.Decimal(12, 2)
-  isActive          Boolean                   @default(true)
-  reorderThresholds ProductReorderThreshold[]
-  stockBalances     StockBalance[]
-  stockMovements    StockMovement[]
-  saleLines         SaleLine[]
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
+  id                 String                    @id @default(cuid())
+  sku                String                    @unique
+  name               String
+  category           String
+  unit               String
+  sellingPrice       Decimal                   @db.Decimal(12, 2)
+  isActive           Boolean                   @default(true)
+  reorderThresholds  ProductReorderThreshold[]
+  stockBalances      StockBalance[]
+  stockMovements     StockMovement[]
+  saleLines          SaleLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 }
 
 /// Per-store reorder threshold for a product (MD-01). A product has at most one
@@ -184,24 +188,24 @@ enum SaleStatus {
 /// Confirmation is idempotent: the client's `Idempotency-Key` is stored with the sale,
 /// unique per actor, so a replay finds the original instead of posting again (SAL-03).
 model Sale {
-  id             String      @id @default(cuid())
+  id             String     @id @default(cuid())
   /// "SAL-000001", issued on confirmation (Section 4.3). Null while a draft.
-  documentNumber String?     @unique
-  status         SaleStatus  @default(DRAFT)
+  documentNumber String?    @unique
+  status         SaleStatus @default(DRAFT)
   storeId        String
-  store          Store       @relation(fields: [storeId], references: [id])
+  store          Store      @relation(fields: [storeId], references: [id])
   createdById    String
-  createdBy      User        @relation("SaleCreatedBy", fields: [createdById], references: [id])
+  createdBy      User       @relation("SaleCreatedBy", fields: [createdById], references: [id])
   confirmedById  String?
-  confirmedBy    User?       @relation("SaleConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedBy    User?      @relation("SaleConfirmedBy", fields: [confirmedById], references: [id])
   /// Sum of the lines, two decimals. Recomputed whenever the lines change.
-  total          Decimal     @db.Decimal(12, 2)
+  total          Decimal    @db.Decimal(12, 2)
   /// The `Idempotency-Key` header of the confirming request. Null while a draft.
   idempotencyKey String?
   confirmedAt    DateTime?
   lines          SaleLine[]
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@unique([confirmedById, idempotencyKey])
   @@index([storeId, createdAt])
@@ -210,21 +214,72 @@ model Sale {
 /// One product on a sale. `sku`, `productName`, `unit` and `unitPrice` are snapshots
 /// taken when the line is saved, so later master-data edits never change the document.
 model SaleLine {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   saleId         String
-  sale           Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
   productId      String
-  product        Product  @relation(fields: [productId], references: [id])
+  product        Product @relation(fields: [productId], references: [id])
   sku            String
   productName    String
   unit           String
   quantity       Int
-  unitPrice      Decimal  @db.Decimal(12, 2)
-  lineTotal      Decimal  @db.Decimal(12, 2)
+  unitPrice      Decimal @db.Decimal(12, 2)
+  lineTotal      Decimal @db.Decimal(12, 2)
   /// Copied from the confirming request, like `Sale.idempotencyKey`.
   idempotencyKey String?
   /// Stock left in the store once this line was posted. Null while a draft.
   balanceAfter   Int?
 
   @@unique([saleId, productId])
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+}
+
+/// A purchase order raised by a Purchasing officer (PO-01). A DRAFT is editable and
+/// orders stock from a supplier into a destination store; it never touches stock itself.
+/// `expectedReceiptDate` is when the goods are expected. Later tickets add approval and
+/// goods receipt; this release only creates and edits drafts.
+model PurchaseOrder {
+  id                  String              @id @default(cuid())
+  /// Issued when a later ticket approves the order (Section 4.3). Null while a draft.
+  documentNumber      String?             @unique
+  status              PurchaseOrderStatus @default(DRAFT)
+  supplierId          String
+  supplier            Supplier            @relation(fields: [supplierId], references: [id])
+  storeId             String
+  store               Store               @relation(fields: [storeId], references: [id])
+  expectedReceiptDate DateTime            @db.Date
+  createdById         String
+  createdBy           User                @relation(fields: [createdById], references: [id])
+  /// Sum of the lines, two decimals. Recomputed whenever the lines change.
+  total               Decimal             @db.Decimal(12, 2)
+  lines               PurchaseOrderLine[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([supplierId, createdAt])
+  @@index([storeId, createdAt])
+}
+
+/// One product on a purchase order. `sku`, `productName` and `unit` are snapshots taken
+/// when the line is saved, so later master-data edits never change the document. A product
+/// appears at most once per order (PO-01: no duplicate SKUs).
+model PurchaseOrderLine {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  sku             String
+  productName     String
+  unit            String
+  /// A positive whole number (PO-01).
+  quantity        Int
+  /// The purchase unit price, a non-negative money value (PO-01).
+  unitPrice       Decimal       @db.Decimal(12, 2)
+  lineTotal       Decimal       @db.Decimal(12, 2)
+
+  @@unique([purchaseOrderId, productId])
 }

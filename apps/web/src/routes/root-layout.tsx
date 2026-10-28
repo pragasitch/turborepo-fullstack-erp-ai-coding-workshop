@@ -28,6 +28,12 @@ export function RootLayout() {
               <Link to="/reports/stock" className="text-muted-foreground hover:text-foreground">
                 รายงานสต็อก
               </Link>
+              {/* Purchasing officers raise purchase orders (@Roles('PURCHASING_OFFICER')). */}
+              {user?.role === 'PURCHASING_OFFICER' && (
+                <Link to="/purchase-orders" className="text-muted-foreground hover:text-foreground">
+                  ใบสั่งซื้อ
+                </Link>
+              )}
               {/* Manager-only stock adjustments and audit trail (@Roles('MANAGER')). */}
               {user?.role === 'MANAGER' && (
                 <Link to="/adjustments" className="text-muted-foreground hover:text-foreground">
