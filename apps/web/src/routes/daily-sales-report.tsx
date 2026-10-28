@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { DailySalesRow } from '@erp/contracts';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { orpc } from '@/lib/orpc';
+
+/** Days per page; the contract caps pageSize at 100 (≈ three months per page). */
+const PAGE_SIZE = 100;
 
 /** Sum a page of per-day rows into a single total, as a two-decimal string. */
 function sumAmount(rows: DailySalesRow[]): string {
@@ -13,9 +17,10 @@ function sumAmount(rows: DailySalesRow[]): string {
 }
 
 function ReportTable({ from, to, storeId }: { from: string; to: string; storeId: string }) {
+  const [page, setPage] = useState(1);
   const report = useQuery(
     orpc.reports.dailySales.queryOptions({
-      input: { from, to, storeId: storeId || undefined },
+      input: { from, to, storeId: storeId || undefined, page, pageSize: PAGE_SIZE },
     }),
   );
 
@@ -31,47 +36,78 @@ function ReportTable({ from, to, storeId }: { from: string; to: string; storeId:
     );
   }
 
-  const { items } = report.data;
+  const { items, total } = report.data;
   const totalUnits = items.reduce((acc, row) => acc + row.unitsSold, 0);
   const totalDocs = items.reduce((acc, row) => acc + row.documentCount, 0);
+  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const paginated = total > PAGE_SIZE;
 
   return (
     <div className="space-y-3">
+      {/* Totals describe the days shown on this page; the label makes that explicit once paged. */}
       <p className="text-sm text-muted-foreground">
-        ใบขาย {totalDocs} ใบ · ขาย {totalUnits} หน่วย · ยอดขายรวม {sumAmount(items)} บาท
+        {paginated ? 'หน้านี้: ' : ''}ใบขาย {totalDocs} ใบ · ขาย {totalUnits} หน่วย · ยอดขายรวม{' '}
+        {sumAmount(items)} บาท
       </p>
       {items.length === 0 ? (
         <p className="text-muted-foreground">ไม่มีการขายในช่วงวันที่ที่เลือก</p>
       ) : (
-        <table className="w-full text-left text-sm">
-          <caption className="sr-only">ยอดขายรายวัน</caption>
-          <thead>
-            <tr className="border-b text-muted-foreground">
-              <th scope="col" className="py-2 pr-4 font-medium">
-                วันที่
-              </th>
-              <th scope="col" className="py-2 pr-4 text-right font-medium">
-                จำนวนใบขาย
-              </th>
-              <th scope="col" className="py-2 pr-4 text-right font-medium">
-                จำนวนหน่วย
-              </th>
-              <th scope="col" className="py-2 text-right font-medium">
-                ยอดขาย (บาท)
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((row) => (
-              <tr key={row.date} className="border-b last:border-0">
-                <td className="py-2 pr-4">{row.date}</td>
-                <td className="py-2 pr-4 text-right">{row.documentCount}</td>
-                <td className="py-2 pr-4 text-right">{row.unitsSold}</td>
-                <td className="py-2 text-right">{row.totalAmount}</td>
+        <>
+          <table className="w-full text-left text-sm">
+            <caption className="sr-only">ยอดขายรายวัน</caption>
+            <thead>
+              <tr className="border-b text-muted-foreground">
+                <th scope="col" className="py-2 pr-4 font-medium">
+                  วันที่
+                </th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">
+                  จำนวนใบขาย
+                </th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">
+                  จำนวนหน่วย
+                </th>
+                <th scope="col" className="py-2 text-right font-medium">
+                  ยอดขาย (บาท)
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((row) => (
+                <tr key={row.date} className="border-b last:border-0">
+                  <td className="py-2 pr-4">{row.date}</td>
+                  <td className="py-2 pr-4 text-right">{row.documentCount}</td>
+                  <td className="py-2 pr-4 text-right">{row.unitsSold}</td>
+                  <td className="py-2 text-right">{row.totalAmount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {paginated && (
+            <div className="flex items-center justify-between text-sm">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                ก่อนหน้า
+              </Button>
+              <span className="text-muted-foreground">
+                หน้า {page} จาก {lastPage}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page >= lastPage}
+                onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+              >
+                ถัดไป
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

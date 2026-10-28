@@ -1,9 +1,11 @@
 import { Test } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { call } from '@orpc/server';
 import { ORPCError } from '@orpc/nest';
 import type { Prisma } from '@erp/database';
 import type { User } from '@erp/contracts';
 import { describe, expect, it, vi } from 'vitest';
+import { ROLES_KEY } from '../auth/auth.decorators.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { ReportsController } from './reports.controller.js';
 
@@ -220,4 +222,29 @@ describe('ReportsController daily sales report (RPT-01)', () => {
     const sql = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
     expect(sql.values).toContain('s2');
   });
+});
+
+describe('ReportsController role enforcement (RPT-01)', () => {
+  const reflector = new Reflector();
+
+  it('restricts the daily sales report to the sales-screen roles, not every signed-in user', async () => {
+    const controller = await createController(vi.fn());
+    const roles = reflector.get<string[]>(
+      ROLES_KEY,
+      Object.getPrototypeOf(controller).dailySales as () => unknown,
+    );
+    expect(roles).toEqual(['STORE_EMPLOYEE', 'MANAGER', 'ADMINISTRATOR']);
+  });
+
+  it.each(['stockOnHand', 'lowStock'] as const)(
+    'leaves the stock report %s open to every signed-in role',
+    async (method) => {
+      const controller = await createController(vi.fn());
+      const roles = reflector.get<string[]>(
+        ROLES_KEY,
+        Object.getPrototypeOf(controller)[method] as () => unknown,
+      );
+      expect(roles).toBeUndefined();
+    },
+  );
 });

@@ -1,20 +1,8 @@
 import type { DailySalesReport, DailySalesReportQuery, User } from '@erp/contracts';
 import { Decimal, Prisma, type PrismaClient } from '@erp/database';
-import { assertStoreScope } from '../auth/store-scope.js';
+import { scopedStoreId } from '../inventory/stock-levels.js';
 
 const BANGKOK_TZ = 'Asia/Bangkok';
-
-/**
- * Which store the report is confined to. A store employee is always confined to their own
- * store (NFR-01): asking for another store, or having none assigned, is rejected by the
- * shared store-scope check. Other roles may span every store or pick one.
- */
-function scopedStoreId(user: User, requested: string | undefined): string | undefined {
-  if (user.role !== 'STORE_EMPLOYEE') return requested;
-  const storeId = requested ?? user.storeId ?? '';
-  assertStoreScope(user, storeId);
-  return storeId;
-}
 
 /**
  * The daily sales report (RPT-01, Section 6.2). One row per Asia/Bangkok calendar day in

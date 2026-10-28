@@ -104,6 +104,44 @@ describe('daily sales report: Asia/Bangkok day boundary (RPT-01, Section 6.2)', 
     expect(report.total).toBe(2);
   });
 
+  it('places the exact midnight boundary instants on the right day (00:00 inclusive of the next day)', async () => {
+    // The last instant of 2026-01-02 Bangkok is 16:59:59.999Z; the first instant of the
+    // 3rd is exactly 17:00:00.000Z. The window is [day 00:00 inclusive, next 00:00 exclusive).
+    await confirmedSale('B01', 2, new Date('2026-01-02T16:59:59.999Z')); // last ms of the 2nd BKK
+    await confirmedSale('B01', 5, new Date('2026-01-02T17:00:00.000Z')); // first ms of the 3rd BKK
+
+    const report = await dailySalesReport(db.prisma, await manager(), {
+      from: '2026-01-02',
+      to: '2026-01-03',
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(report.items).toEqual([
+      { date: '2026-01-03', documentCount: 1, unitsSold: 5, totalAmount: '300.00' },
+      { date: '2026-01-02', documentCount: 1, unitsSold: 2, totalAmount: '120.00' },
+    ]);
+  });
+
+  it('excludes a sale whose Bangkok day falls outside the requested range', async () => {
+    // from = to = 2026-01-02 (Bangkok). These two sit on the 1st and the 3rd Bangkok time.
+    await confirmedSale('B01', 9, new Date('2026-01-01T16:59:59.000Z')); // 23:59:59 BKK on the 1st
+    await confirmedSale('B01', 7, new Date('2026-01-02T17:00:01.000Z')); // 00:00:01 BKK on the 3rd
+    await confirmedSale('B01', 2, new Date('2026-01-02T05:00:00.000Z')); // noon BKK on the 2nd
+
+    const report = await dailySalesReport(db.prisma, await manager(), {
+      from: '2026-01-02',
+      to: '2026-01-02',
+      page: 1,
+      pageSize: 20,
+    });
+
+    // Only the 2nd's sale; the 1st and 3rd are outside the range.
+    expect(report.items).toEqual([
+      { date: '2026-01-02', documentCount: 1, unitsSold: 2, totalAmount: '120.00' },
+    ]);
+  });
+
   it('counts only confirmed sales and sums count, units and total to two decimals', async () => {
     await confirmedSale('B01', 2, new Date('2026-01-02T05:00:00.000Z')); // noon BKK on the 2nd
     await confirmedSale('B01', 3, new Date('2026-01-02T06:00:00.000Z')); // 13:00 BKK on the 2nd
