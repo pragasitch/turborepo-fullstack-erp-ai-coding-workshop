@@ -11,6 +11,18 @@ export const ErrorEnvelopeSchema = z.object({
   code: z.string(),
   message: z.string().min(1),
   fields: z.array(z.string()).optional(),
+  /** The products a rejection concerns, e.g. the short lines of a sale (SAL-02). */
+  products: z
+    .array(
+      z.object({
+        productId: z.string(),
+        sku: z.string(),
+        productName: z.string(),
+        requested: z.number().int(),
+        available: z.number().int(),
+      }),
+    )
+    .optional(),
 });
 export type ErrorEnvelope = z.infer<typeof ErrorEnvelopeSchema>;
 
