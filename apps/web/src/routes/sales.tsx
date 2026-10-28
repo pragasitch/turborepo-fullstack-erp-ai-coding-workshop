@@ -38,9 +38,16 @@ function ErrorAlert({ error }: { error: unknown }) {
 
 type BuilderLine = { productId: string; sku: string; productName: string; quantity: number };
 
-/** A fresh key per draft, reused for every retry of that draft's confirmation (SAL-03). */
+/**
+ * A fresh key per draft, reused for every retry of that draft's confirmation (SAL-03).
+ * `randomUUID` only exists in secure contexts (https, localhost); `getRandomValues`
+ * works everywhere, so use it when the first is missing.
+ */
 function newIdempotencyKey() {
-  return crypto.randomUUID();
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('');
 }
 
 function SaleForm() {
