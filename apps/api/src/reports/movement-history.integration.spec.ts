@@ -79,13 +79,12 @@ describe('movement history against Postgres (RPT-03)', () => {
     await move(manager, 'SKU002', 'B01', 3, 'ADJUSTMENT', { type: 'ADJUSTMENT', id: 'ADJ-1' });
     await move(manager, 'SKU001', 'B02', 4, 'RECEIPT', { type: 'GOODS_RECEIPT', id: 'GR-2' });
 
-    const product = await db.product('SKU001');
-    const byProduct = await call(controller().movementHistory(manager), {
+    const bySearch = await call(controller().movementHistory(manager), {
       ...defaults,
-      productId: product.id,
+      search: 'SKU001',
     });
-    expect(byProduct.items.every((i) => i.sku === 'SKU001')).toBe(true);
-    expect(byProduct.total).toBe(2);
+    expect(bySearch.items.every((i) => i.sku === 'SKU001')).toBe(true);
+    expect(bySearch.total).toBe(2);
 
     const b01 = await db.store('B01');
     const byStore = await call(controller().movementHistory(manager), {

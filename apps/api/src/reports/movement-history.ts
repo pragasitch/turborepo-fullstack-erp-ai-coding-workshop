@@ -20,7 +20,6 @@ type MovementRow = {
   actorId: string;
   actorName: string;
   createdAt: Date;
-  total: number;
 };
 
 /**
@@ -38,16 +37,19 @@ export async function movementHistory(
   user: User,
   query: MovementHistoryQuery,
 ): Promise<MovementHistoryReport> {
-  const { page, pageSize, productId, type, from, to } = query;
+  const { page, pageSize, search, type, from, to } = query;
   const storeId = scopedStoreId(user, query.storeId);
 
-  const productFilter = productId ? Prisma.sql`AND m."productId" = ${productId}` : Prisma.empty;
+  const searchFilter = search
+    ? Prisma.sql`AND (p."sku" ILIKE ${`%${search}%`} OR p."name" ILIKE ${`%${search}%`})`
+    : Prisma.empty;
   const storeFilter = storeId ? Prisma.sql`AND m."storeId" = ${storeId}` : Prisma.empty;
   const typeFilter = type ? Prisma.sql`AND m."type" = ${type}::"StockMovementType"` : Prisma.empty;
   // `createdAt` is a UTC instant; bucket by its Asia/Bangkok calendar day for the range.
   const bangkokDay = Prisma.sql`((m."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date`;
   const fromFilter = from ? Prisma.sql`AND ${bangkokDay} >= ${from}::date` : Prisma.empty;
   const toFilter = to ? Prisma.sql`AND ${bangkokDay} <= ${to}::date` : Prisma.empty;
+  const where = Prisma.sql`WHERE TRUE ${searchFilter} ${storeFilter} ${typeFilter} ${fromFilter} ${toFilter}`;
 
   const rows = await prisma.$queryRaw<MovementRow[]>(Prisma.sql`
     SELECT
@@ -67,15 +69,24 @@ export async function movementHistory(
       m."sourceDocumentId" AS "sourceDocumentId",
       u."id" AS "actorId",
       u."name" AS "actorName",
-      m."createdAt" AS "createdAt",
-      (COUNT(*) OVER ())::int AS "total"
+      m."createdAt" AS "createdAt"
     FROM "StockMovement" m
     JOIN "Product" p ON p."id" = m."productId"
     JOIN "Store" s ON s."id" = m."storeId"
     JOIN "User" u ON u."id" = m."actorId"
-    WHERE TRUE ${productFilter} ${storeFilter} ${typeFilter} ${fromFilter} ${toFilter}
+    ${where}
     ORDER BY m."createdAt" DESC, m."id" DESC
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+  `);
+
+  // A separate count, independent of the page window, so `total` is right on any page.
+  const totalRows = await prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+    SELECT COUNT(*) AS count
+    FROM "StockMovement" m
+    JOIN "Product" p ON p."id" = m."productId"
+    JOIN "Store" s ON s."id" = m."storeId"
+    JOIN "User" u ON u."id" = m."actorId"
+    ${where}
   `);
 
   return {
@@ -98,7 +109,7 @@ export async function movementHistory(
       actorName: row.actorName,
       createdAt: row.createdAt.toISOString(),
     })),
-    total: rows[0]?.total ?? 0,
+    total: Number(totalRows[0]?.count ?? 0),
     page,
     pageSize,
   };

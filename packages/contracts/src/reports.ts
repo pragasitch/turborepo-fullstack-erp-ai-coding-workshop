@@ -88,16 +88,17 @@ export const MovementTypeSchema = z.enum(['RECEIPT', 'SALE', 'ADJUSTMENT']);
 export type MovementType = z.infer<typeof MovementTypeSchema>;
 
 /**
- * Movement history query (RPT-03). Filters the append-only stock ledger by `productId`,
- * `storeId`, movement `type` and an inclusive Asia/Bangkok calendar date range. Every
- * filter is optional; a Store employee is confined to their own store by the API
- * regardless of `storeId`. Results are newest-first and paginated.
+ * Movement history query (RPT-03). Filters the append-only stock ledger by a free-text
+ * product `search` (SKU or product name, like the stock reports), `storeId`, movement
+ * `type` and an inclusive Asia/Bangkok calendar date range. Every filter is optional; a
+ * Store employee is confined to their own store by the API regardless of `storeId`.
+ * Results are newest-first and paginated.
  */
 export const MovementHistoryQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
-    productId: z.string().optional(),
+    search: z.string().trim().optional(),
     storeId: z.string().optional(),
     type: MovementTypeSchema.optional(),
     from: CalendarDate.optional(),

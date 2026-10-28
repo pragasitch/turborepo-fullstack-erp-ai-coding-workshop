@@ -81,7 +81,6 @@ describe('MovementHistoryPage (RPT-03)', () => {
     mockApi({
       'GET /auth/me': { user: manager },
       'GET /stores': stores,
-      'GET /products': { items: [], total: 0, page: 1, pageSize: 20 },
       'GET /reports/movement-history': report([
         row(),
         row({
@@ -109,7 +108,6 @@ describe('MovementHistoryPage (RPT-03)', () => {
     mockApi({
       'GET /auth/me': { user: manager },
       'GET /stores': stores,
-      'GET /products': { items: [], total: 0, page: 1, pageSize: 20 },
       'GET /reports/movement-history': report([]),
     });
     renderPage();
@@ -117,11 +115,10 @@ describe('MovementHistoryPage (RPT-03)', () => {
     expect(await screen.findByText('ไม่พบประวัติการเคลื่อนไหวสต็อก')).toBeInTheDocument();
   });
 
-  it('sends the chosen store, type and date range to the API', async () => {
+  it('sends the product search, store, type and date range to the API', async () => {
     const fetch = mockApi({
       'GET /auth/me': { user: manager },
       'GET /stores': stores,
-      'GET /products': { items: [], total: 0, page: 1, pageSize: 20 },
       'GET /reports/movement-history': report([row()]),
     });
     renderPage();
@@ -133,12 +130,19 @@ describe('MovementHistoryPage (RPT-03)', () => {
     fireEvent.change(screen.getByLabelText('ประเภท'), { target: { value: 'RECEIPT' } });
     fireEvent.change(screen.getByLabelText('ตั้งแต่วันที่'), { target: { value: '2026-01-01' } });
     fireEvent.change(screen.getByLabelText('ถึงวันที่'), { target: { value: '2026-01-31' } });
+    // The product filter is a free-text search applied on submit (role-open, unlike a
+    // products.list dropdown that managers and store staff may not read).
+    fireEvent.change(screen.getByLabelText('ค้นหาสินค้า (SKU หรือชื่อสินค้า)'), {
+      target: { value: 'SKU001' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ค้นหา' }));
 
     await waitFor(() => {
       const urls = fetch.mock.calls
         .map(([request]) => (request as Request).url)
         .filter((url) => url.includes('movement-history'));
       const joined = urls.join(' ');
+      expect(joined).toContain('search=SKU001');
       expect(joined).toContain('storeId=s2');
       expect(joined).toContain('type=RECEIPT');
       expect(joined).toContain('from=2026-01-01');
@@ -150,7 +154,6 @@ describe('MovementHistoryPage (RPT-03)', () => {
     mockApi({
       'GET /auth/me': { user: manager },
       'GET /stores': stores,
-      'GET /products': { items: [], total: 0, page: 1, pageSize: 20 },
       'GET /reports/movement-history': Response.json(
         { defined: false, code: 'INTERNAL_SERVER_ERROR', status: 500, message: 'x' },
         { status: 500 },
@@ -198,7 +201,6 @@ describe('navigation', () => {
       'GET /auth/me': { user: staffB01 },
       'GET /health': { status: 'ok' },
       'GET /stores': stores,
-      'GET /products': { items: [], total: 0, page: 1, pageSize: 20 },
       'GET /reports/movement-history': report([]),
     });
     renderApp();

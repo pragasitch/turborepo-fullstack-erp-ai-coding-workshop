@@ -214,17 +214,17 @@ describe('MovementHistoryQuerySchema (RPT-03)', () => {
     expect(MovementHistoryQuerySchema.parse({})).toEqual({ page: 1, pageSize: 20 });
   });
 
-  it('accepts product, store, type and an inclusive date range', () => {
+  it('accepts a product search, store, type and an inclusive date range', () => {
     expect(
       MovementHistoryQuerySchema.parse({
-        productId: 'p1',
+        search: ' SKU001 ',
         storeId: 's1',
         type: 'SALE',
         from: '2026-01-01',
         to: '2026-01-31',
       }),
     ).toMatchObject({
-      productId: 'p1',
+      search: 'SKU001',
       storeId: 's1',
       type: 'SALE',
       from: '2026-01-01',

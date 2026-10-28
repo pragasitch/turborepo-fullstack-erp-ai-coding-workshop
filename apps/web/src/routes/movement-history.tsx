@@ -18,8 +18,8 @@ const TYPE_LABEL: Record<MovementType, string> = {
 };
 
 type Filters = {
+  search: string;
   storeId: string;
-  productId: string;
   type: '' | MovementType;
   from: string;
   to: string;
@@ -32,8 +32,8 @@ function HistoryTable({ filters }: { filters: Filters }) {
       input: {
         page,
         pageSize: PAGE_SIZE,
+        search: filters.search || undefined,
         storeId: filters.storeId || undefined,
-        productId: filters.productId || undefined,
         type: filters.type || undefined,
         from: filters.from || undefined,
         to: filters.to || undefined,
@@ -148,14 +148,14 @@ function HistoryTable({ filters }: { filters: Filters }) {
  */
 export function MovementHistoryPage() {
   const [filters, setFilters] = useState<Filters>({
+    search: '',
     storeId: '',
-    productId: '',
     type: '',
     from: '',
     to: '',
   });
+  const [term, setTerm] = useState('');
   const stores = useQuery(orpc.stores.list.queryOptions({ input: { pageSize: 100 } }));
-  const products = useQuery(orpc.products.list.queryOptions({ input: { pageSize: 100 } }));
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -175,22 +175,20 @@ export function MovementHistoryPage() {
           <CardDescription>เลือกเงื่อนไขเพื่อกรองประวัติ</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-5">
-            <div className="space-y-2">
-              <Label htmlFor="history-product">สินค้า</Label>
-              <select
-                id="history-product"
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                value={filters.productId}
-                onChange={(event) => set('productId', event.target.value)}
-              >
-                <option value="">ทุกสินค้า</option>
-                {(products.data?.items ?? []).map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.sku} {product.name}
-                  </option>
-                ))}
-              </select>
+          <form
+            className="grid items-end gap-4 sm:grid-cols-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              set('search', term.trim());
+            }}
+          >
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="history-search">ค้นหาสินค้า (SKU หรือชื่อสินค้า)</Label>
+              <Input
+                id="history-search"
+                value={term}
+                onChange={(event) => setTerm(event.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="history-store">สาขา</Label>
@@ -222,6 +220,7 @@ export function MovementHistoryPage() {
                 <option value="ADJUSTMENT">{TYPE_LABEL.ADJUSTMENT}</option>
               </select>
             </div>
+            <Button type="submit">ค้นหา</Button>
             <div className="space-y-2">
               <Label htmlFor="history-from">ตั้งแต่วันที่</Label>
               <Input
@@ -240,7 +239,7 @@ export function MovementHistoryPage() {
                 onChange={(event) => set('to', event.target.value)}
               />
             </div>
-          </div>
+          </form>
           {/* Keyed by the filters so a new filter starts again on page 1. */}
           <HistoryTable key={JSON.stringify(filters)} filters={filters} />
         </CardContent>

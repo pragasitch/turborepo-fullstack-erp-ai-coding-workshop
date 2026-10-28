@@ -74,16 +74,15 @@ test.describe('stock movement history - manager', () => {
 
     const today = bangkokToday();
 
-    // Filter to this product and to ADJUSTMENT movements, over today.
+    // Filter to this product (free-text search) and to ADJUSTMENT movements, over today.
     await page.goto('/reports/movement-history');
     await expect(page.getByRole('heading', { name: 'ประวัติการเคลื่อนไหวสต็อก' })).toBeVisible();
 
-    const productOption = page.getByRole('option', { name: new RegExp(sku) });
-    await expect(productOption).toHaveCount(1);
-    await page.getByLabel('สินค้า').selectOption((await productOption.getAttribute('value')) ?? '');
+    await page.getByLabel('ค้นหาสินค้า (SKU หรือชื่อสินค้า)').fill(sku);
     await page.getByLabel('ประเภท').selectOption('ADJUSTMENT');
     await page.getByLabel('ตั้งแต่วันที่').fill(today);
     await page.getByLabel('ถึงวันที่').fill(today);
+    await page.getByRole('button', { name: 'ค้นหา' }).click();
 
     // Both stores show for a Manager, and each row carries its source document (ADJUSTMENT).
     await expect(page.getByRole('cell', { name: 'B01', exact: true })).toBeVisible();

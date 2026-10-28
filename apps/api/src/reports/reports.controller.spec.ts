@@ -249,7 +249,7 @@ describe('ReportsController role enforcement (RPT-01)', () => {
   );
 });
 
-/** A movement-history row as the raw query returns it, with the window-count total. */
+/** A movement-history row as the rows query returns it (the count is a separate query). */
 function movementRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'm1',
@@ -269,16 +269,24 @@ function movementRow(overrides: Partial<Record<string, unknown>> = {}) {
     actorId: 'u1',
     actorName: 'พนักงาน',
     createdAt: new Date('2026-01-02T03:04:05.000Z'),
-    total: 1,
     ...overrides,
   };
 }
 
+/** Movement history runs two raw queries: the page of rows, then the filtered count. */
+function movementController(rows: unknown[], count = rows.length) {
+  const queryRaw = vi
+    .fn()
+    .mockResolvedValueOnce(rows)
+    .mockResolvedValueOnce([{ count: BigInt(count) }]);
+  return { queryRaw, controller: createController(queryRaw) };
+}
+
 describe('ReportsController movement history (RPT-03)', () => {
   it('maps a ledger row to the report shape with its source document and actor', async () => {
-    const controller = await createController(vi.fn().mockResolvedValue([movementRow()]));
+    const { controller } = movementController([movementRow()]);
 
-    const result = await call(controller.movementHistory(manager), defaults);
+    const result = await call((await controller).movementHistory(manager), defaults);
 
     expect(result).toEqual({
       items: [
@@ -309,20 +317,19 @@ describe('ReportsController movement history (RPT-03)', () => {
   });
 
   it('returns an empty page with total 0 when nothing matches', async () => {
-    const controller = await createController(vi.fn().mockResolvedValue([]));
+    const { controller } = movementController([], 0);
 
     await expect(
-      call(controller.movementHistory(manager), { ...defaults, productId: 'nope' }),
+      call((await controller).movementHistory(manager), { ...defaults, search: 'nope' }),
     ).resolves.toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
   });
 
-  it('passes the product, store, type and date filters to the query as parameters', async () => {
-    const queryRaw = vi.fn().mockResolvedValue([]);
-    const controller = await createController(queryRaw);
+  it('passes the product search, store, type and date filters to the query as parameters', async () => {
+    const { queryRaw, controller } = movementController([]);
 
-    await call(controller.movementHistory(manager), {
+    await call((await controller).movementHistory(manager), {
       ...defaults,
-      productId: 'p1',
+      search: 'SKU001',
       storeId: 's1',
       type: 'RECEIPT',
       from: '2026-01-01',
@@ -331,26 +338,25 @@ describe('ReportsController movement history (RPT-03)', () => {
 
     const sql = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
     expect(sql.values).toEqual(
-      expect.arrayContaining(['p1', 's1', 'RECEIPT', '2026-01-01', '2026-01-31']),
+      expect.arrayContaining(['%SKU001%', 's1', 'RECEIPT', '2026-01-01', '2026-01-31']),
     );
   });
 
   it('lets a manager span every store', async () => {
-    const queryRaw = vi
-      .fn()
-      .mockResolvedValue([movementRow(), movementRow({ storeId: 's2', storeCode: 'B02' })]);
-    const controller = await createController(queryRaw);
+    const { controller } = movementController([
+      movementRow(),
+      movementRow({ storeId: 's2', storeCode: 'B02' }),
+    ]);
 
-    const { items } = await call(controller.movementHistory(manager), defaults);
+    const { items } = await call((await controller).movementHistory(manager), defaults);
 
     expect(items.map((i) => i.storeCode)).toEqual(['B01', 'B02']);
   });
 
   it('confines a store employee to their assigned store when no store is requested', async () => {
-    const queryRaw = vi.fn().mockResolvedValue([movementRow()]);
-    const controller = await createController(queryRaw);
+    const { queryRaw, controller } = movementController([movementRow()]);
 
-    await call(controller.movementHistory(user('STORE_EMPLOYEE', 's1')), defaults);
+    await call((await controller).movementHistory(user('STORE_EMPLOYEE', 's1')), defaults);
 
     const sql = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
     expect(sql.values).toContain('s1');
