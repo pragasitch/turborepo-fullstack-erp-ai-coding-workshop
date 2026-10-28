@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
+import { StockLevelsTable } from '@/components/stock-levels-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,54 +28,7 @@ function StockTable({ search }: { search: string }) {
     return <p className="text-muted-foreground">ไม่พบสินค้าในสต็อก</p>;
   }
 
-  return (
-    <table className="w-full text-left text-sm">
-      <thead>
-        <tr className="border-b text-muted-foreground">
-          <th scope="col" className="py-2 pr-4 font-medium">
-            SKU
-          </th>
-          <th scope="col" className="py-2 pr-4 font-medium">
-            สินค้า
-          </th>
-          <th scope="col" className="py-2 pr-4 font-medium">
-            สาขา
-          </th>
-          <th scope="col" className="py-2 pr-4 text-right font-medium">
-            คงเหลือ
-          </th>
-          <th scope="col" className="py-2 pr-4 font-medium">
-            หน่วย
-          </th>
-          <th scope="col" className="py-2 pr-4 text-right font-medium">
-            จุดสั่งซื้อ
-          </th>
-          <th scope="col" className="py-2 font-medium">
-            สถานะ
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {stock.data.items.map((item) => (
-          <tr key={`${item.productId}:${item.storeId}`} className="border-b last:border-0">
-            <td className="py-2 pr-4 font-medium">{item.sku}</td>
-            <td className="py-2 pr-4">{item.productName}</td>
-            <td className="py-2 pr-4">{`${item.storeCode} ${item.storeName}`}</td>
-            <td className="py-2 pr-4 text-right tabular-nums">{item.quantity}</td>
-            <td className="py-2 pr-4">{item.unit}</td>
-            <td className="py-2 pr-4 text-right tabular-nums">{item.reorderThreshold ?? '-'}</td>
-            <td className="py-2">
-              {item.isLowStock ? (
-                <Badge variant="destructive">สต็อกต่ำ</Badge>
-              ) : (
-                <Badge variant="secondary">ปกติ</Badge>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+  return <StockLevelsTable items={stock.data.items} />;
 }
 
 /** Stock search and low-stock view (INV-01). Every signed-in role; the API scopes store employees. */

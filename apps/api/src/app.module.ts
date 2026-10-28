@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { OpenApiModule } from './openapi/openapi.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { SuppliersModule } from './suppliers/suppliers.module.js';
@@ -29,6 +30,7 @@ import { SuppliersModule } from './suppliers/suppliers.module.js';
     InventoryModule,
     OpenApiModule,
     ProductsModule,
+    ReportsModule,
     SalesModule,
     StoresModule,
     SuppliersModule,
