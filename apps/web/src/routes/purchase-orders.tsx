@@ -2,6 +2,7 @@ import { ORPCError } from '@orpc/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { ErrorEnvelope, PurchaseOrder } from '@erp/contracts';
+import { PurchaseOrderLineInputSchema } from '@erp/contracts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,6 @@ import { useCurrentUser } from '@/lib/auth';
 import { orpc } from '@/lib/orpc';
 
 const GENERIC_ERROR = 'เกิดข้อผิดพลาด ไม่สามารถดำเนินการได้';
-const MONEY = /^\d+\.\d{2}$/;
 
 function envelopeOf(error: unknown): ErrorEnvelope | undefined {
   return error instanceof ORPCError ? (error.data as ErrorEnvelope | undefined) : undefined;
@@ -72,10 +72,11 @@ function PurchaseOrderForm() {
 
   const productOptions = (products.data?.items ?? []).filter((p) => p.isActive);
   const chosen = productOptions.find((item) => item.id === productId);
-  const quantityNumber = Number(quantity);
-  const validQuantity = Number.isInteger(quantityNumber) && quantityNumber > 0;
-  const validPrice = MONEY.test(unitPrice);
-  const canAdd = Boolean(chosen) && validQuantity && validPrice;
+  // The contract's line schema is the single source of the quantity and price rules.
+  const canAdd =
+    Boolean(chosen) &&
+    PurchaseOrderLineInputSchema.safeParse({ productId, quantity: Number(quantity), unitPrice })
+      .success;
 
   const addLine = () => {
     if (!chosen || !canAdd) return;
@@ -85,7 +86,7 @@ function PurchaseOrderForm() {
         productId: chosen.id,
         sku: chosen.sku,
         productName: chosen.name,
-        quantity: quantityNumber,
+        quantity: Number(quantity),
         unitPrice,
       },
     ]);

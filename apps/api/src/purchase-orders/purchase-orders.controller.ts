@@ -1,11 +1,12 @@
 import { Controller } from '@nestjs/common';
 import { contract, type User } from '@erp/contracts';
-import { Implement, implement, ORPCError } from '@orpc/nest';
+import { Implement, implement } from '@orpc/nest';
 import { CurrentUser, Roles } from '../auth/auth.decorators.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
   createDraftPurchaseOrder,
   PURCHASE_ORDER_INCLUDE,
+  purchaseOrderNotFound,
   type PurchaseOrderRecord,
   updateDraftPurchaseOrder,
 } from './purchase-orders.js';
@@ -80,11 +81,7 @@ export class PurchaseOrdersController {
         where: { id: input.id },
         include: PURCHASE_ORDER_INCLUDE,
       });
-      if (!po) {
-        throw new ORPCError('NOT_FOUND', {
-          data: { code: 'PURCHASE_ORDER_NOT_FOUND', message: 'ไม่พบใบสั่งซื้อ' },
-        });
-      }
+      if (!po) throw purchaseOrderNotFound();
       return toPurchaseOrder(po);
     });
   }

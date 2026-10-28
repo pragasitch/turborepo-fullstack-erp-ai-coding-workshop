@@ -1,4 +1,4 @@
-import type { PurchaseOrderLineInput, User } from '@erp/contracts';
+import type { CreatePurchaseOrderInput, User } from '@erp/contracts';
 import { Decimal, type Prisma, type PrismaClient } from '@erp/database';
 import { ORPCError } from '@orpc/nest';
 import { assertProductUsableInDocument } from '../products/products.rules.js';
@@ -13,15 +13,10 @@ export type PurchaseOrderRecord = Prisma.PurchaseOrderGetPayload<{
   include: typeof PURCHASE_ORDER_INCLUDE;
 }>;
 
-/** The header a client supplies for a draft, plus its lines. */
-export type PurchaseOrderHeaderInput = {
-  supplierId: string;
-  storeId: string;
-  expectedReceiptDate: string;
-  lines: PurchaseOrderLineInput[];
-};
+/** The header a client supplies for a draft, plus its lines (derived from the contract). */
+export type PurchaseOrderHeaderInput = CreatePurchaseOrderInput;
 
-function purchaseOrderNotFound() {
+export function purchaseOrderNotFound() {
   return new ORPCError('NOT_FOUND', {
     data: { code: 'PURCHASE_ORDER_NOT_FOUND', message: 'ไม่พบใบสั่งซื้อ' },
   });
