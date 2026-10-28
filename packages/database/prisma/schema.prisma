@@ -35,7 +35,8 @@ model User {
   auditLogs             AuditLog[]
   createdSales          Sale[]          @relation("SaleCreatedBy")
   confirmedSales        Sale[]          @relation("SaleConfirmedBy")
-  createdPurchaseOrders PurchaseOrder[]
+  createdPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  decidedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderDecidedBy")
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 }
@@ -233,8 +234,18 @@ model SaleLine {
   @@unique([saleId, productId])
 }
 
+/// The purchase order state machine (PO-02). The only legal transitions are
+/// DRAFT -> PENDING_APPROVAL (submit), PENDING_APPROVAL -> APPROVED | REJECTED (manager),
+/// and DRAFT | PENDING_APPROVAL -> CANCELLED. Goods receipt later moves APPROVED through
+/// PARTIALLY_RECEIVED to COMPLETED.
 enum PurchaseOrderStatus {
   DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PARTIALLY_RECEIVED
+  COMPLETED
+  REJECTED
+  CANCELLED
 }
 
 /// A purchase order raised by a Purchasing officer (PO-01). A DRAFT is editable and
@@ -252,9 +263,14 @@ model PurchaseOrder {
   store               Store               @relation(fields: [storeId], references: [id])
   expectedReceiptDate DateTime            @db.Date
   createdById         String
-  createdBy           User                @relation(fields: [createdById], references: [id])
+  createdBy           User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
   /// Sum of the lines, two decimals. Recomputed whenever the lines change.
   total               Decimal             @db.Decimal(12, 2)
+  /// Why a manager approved or rejected the order, or why it was cancelled (PO-03, PO-04).
+  decisionReason      String?
+  decidedById         String?
+  decidedBy           User?               @relation("PurchaseOrderDecidedBy", fields: [decidedById], references: [id])
+  decidedAt           DateTime?
   lines               PurchaseOrderLine[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
