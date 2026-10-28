@@ -91,9 +91,7 @@ describe('stock reports against Postgres (RPT-02)', () => {
     const manager = await signedIn('manager01@erp.local');
     const b01 = await db.store('B01');
     const lowStock = async () =>
-      summary(
-        (await call(controller().lowStock(manager), { ...defaults, storeId: b01.id })).items,
-      );
+      summary((await call(controller().lowStock(manager), { ...defaults, storeId: b01.id })).items);
 
     await moveWaterB01(manager, -6); // 10 -> 4: above the threshold of 3
     expect(await lowStock()).toEqual(['SKU003@B01=0']);

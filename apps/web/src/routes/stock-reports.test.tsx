@@ -220,7 +220,9 @@ describe('StockReportsPage (RPT-02)', () => {
 
     await vi.waitFor(() => {
       expect(
-        requests(fetchMock, '/reports/stock-on-hand').some((u) => u.searchParams.get('page') === '2'),
+        requests(fetchMock, '/reports/stock-on-hand').some(
+          (u) => u.searchParams.get('page') === '2',
+        ),
       ).toBe(true);
     });
     // The low-stock report keeps its own page.

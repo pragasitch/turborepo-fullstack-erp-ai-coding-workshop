@@ -75,9 +75,9 @@ describe.each(reports)('ReportsController %s report (RPT-02)', (_name, route) =>
   it('returns an empty page with total 0 when nothing matches', async () => {
     const controller = await createController(vi.fn().mockResolvedValue([]));
 
-    await expect(call(controller[route](manager), { ...defaults, search: 'nope' })).resolves.toEqual(
-      { items: [], total: 0, page: 1, pageSize: 20 },
-    );
+    await expect(
+      call(controller[route](manager), { ...defaults, search: 'nope' }),
+    ).resolves.toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
   });
 
   it('passes the product search and the requested store to the query as parameters', async () => {
