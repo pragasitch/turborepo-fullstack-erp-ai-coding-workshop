@@ -12,7 +12,7 @@
 # unguarded.
 set -euo pipefail
 
-max=3
+max=20
 spec=""
 effort="high"
 dry_run=0
