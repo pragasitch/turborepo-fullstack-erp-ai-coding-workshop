@@ -49,7 +49,17 @@ const line = (
   unitPrice: string,
   lineTotal: string,
   balanceAfter: number | null,
-) => ({ id, productId, sku, productName, unit: 'แพ็ค', quantity, unitPrice, lineTotal, balanceAfter });
+) => ({
+  id,
+  productId,
+  sku,
+  productName,
+  unit: 'แพ็ค',
+  quantity,
+  unitPrice,
+  lineTotal,
+  balanceAfter,
+});
 
 const draftLines = [
   line('l1', 'p1', 'SKU001', 'น้ำดื่มแพ็ค 6', 2, '60.00', '120.00', null),
@@ -153,8 +163,12 @@ describe('SalesPage (SAL-01..SAL-04)', () => {
       'ยืนยันแล้ว SAL-000001 ยอดรวม 155.00 บาท',
     );
     const rows = screen.getAllByRole('row');
-    expect(within(rows.find((r) => r.textContent?.includes('SKU001'))!).getAllByRole('cell')[4]).toHaveTextContent('8');
-    expect(within(rows.find((r) => r.textContent?.includes('SKU002'))!).getAllByRole('cell')[4]).toHaveTextContent('4');
+    expect(
+      within(rows.find((r) => r.textContent?.includes('SKU001'))!).getAllByRole('cell')[4],
+    ).toHaveTextContent('8');
+    expect(
+      within(rows.find((r) => r.textContent?.includes('SKU002'))!).getAllByRole('cell')[4],
+    ).toHaveTextContent('4');
     expect(screen.queryByRole('button', { name: 'ยืนยันการขาย' })).not.toBeInTheDocument();
 
     const confirmRequest = fetch.mock.calls
@@ -175,7 +189,10 @@ describe('SalesPage (SAL-01..SAL-04)', () => {
       if (key === 'POST /sales/sale1/confirm') {
         attempts += 1;
         return attempts === 1
-          ? Response.json({ defined: false, code: 'INTERNAL_SERVER_ERROR', status: 500, message: 'x' }, { status: 500 })
+          ? Response.json(
+              { defined: false, code: 'INTERNAL_SERVER_ERROR', status: 500, message: 'x' },
+              { status: 500 },
+            )
           : Response.json(confirmed);
       }
       return Response.json({}, { status: 404 });
@@ -208,7 +225,13 @@ describe('SalesPage (SAL-01..SAL-04)', () => {
         message: 'สต็อกไม่เพียงพอสำหรับสินค้าบางรายการ',
         fields: ['lines'],
         products: [
-          { productId: 'p1', sku: 'SKU001', productName: 'น้ำดื่มแพ็ค 6', requested: 11, available: 10 },
+          {
+            productId: 'p1',
+            sku: 'SKU001',
+            productName: 'น้ำดื่มแพ็ค 6',
+            requested: 11,
+            available: 10,
+          },
         ],
       }),
     });

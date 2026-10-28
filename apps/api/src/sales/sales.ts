@@ -27,7 +27,10 @@ function saleNotFound() {
 
 /** SAL-04: a confirmed sale is final in this release. */
 export function saleConfirmedImmutable() {
-  return conflict('SALE_CONFIRMED_IMMUTABLE', 'ใบขายที่ยืนยันแล้วไม่สามารถแก้ไข ยกเลิก หรือคืนสินค้าได้');
+  return conflict(
+    'SALE_CONFIRMED_IMMUTABLE',
+    'ใบขายที่ยืนยันแล้วไม่สามารถแก้ไข ยกเลิก หรือคืนสินค้าได้',
+  );
 }
 
 /** The sale's store is the store employee's assigned store (SAL-01). */
@@ -40,10 +43,7 @@ function assignedStoreId(actor: User): string {
  * Look up the products on a draft and apply today's selling price, name and unit to each
  * line (SAL-01). The client only ever names a product and a quantity.
  */
-async function priceLines(
-  db: Pick<Prisma.TransactionClient, 'product'>,
-  lines: SaleLineInput[],
-) {
+async function priceLines(db: Pick<Prisma.TransactionClient, 'product'>, lines: SaleLineInput[]) {
   const products = await db.product.findMany({
     where: { id: { in: lines.map((l) => l.productId) } },
   });
@@ -116,7 +116,13 @@ export async function replaceDraftLines(
   });
 }
 
-type Shortage = { productId: string; sku: string; productName: string; requested: number; available: number };
+type Shortage = {
+  productId: string;
+  sku: string;
+  productName: string;
+  requested: number;
+  available: number;
+};
 
 function isInsufficientStock(error: unknown): boolean {
   return (

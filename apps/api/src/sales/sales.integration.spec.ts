@@ -236,7 +236,9 @@ describe('confirming a sale (SAL-02, SAL-03)', () => {
     const sale = await draft({ SKU001: 1 });
     await db.prisma.product.update({ where: { sku: 'SKU001' }, data: { isActive: false } });
 
-    const error = await rejection(confirmSale(db.prisma, await actor(), sale.id, 'confirm-inact-001'));
+    const error = await rejection(
+      confirmSale(db.prisma, await actor(), sale.id, 'confirm-inact-001'),
+    );
 
     expect(error.data).toMatchObject({ code: 'PRODUCT_INACTIVE' });
     expect(await db.balance('SKU001', 'B01')).toBe(10);

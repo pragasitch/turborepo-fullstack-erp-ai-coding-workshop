@@ -11,18 +11,18 @@ const line = { productId: 'p1', quantity: 2 };
 
 describe('CreateSaleSchema (SAL-01)', () => {
   it('accepts lines of product and a positive whole-number quantity', () => {
-    expect(CreateSaleSchema.safeParse({ lines: [line, { productId: 'p2', quantity: 1 }] }).success).toBe(
-      true,
-    );
+    expect(
+      CreateSaleSchema.safeParse({ lines: [line, { productId: 'p2', quantity: 1 }] }).success,
+    ).toBe(true);
   });
 
   it('rejects a price override: price is never supplied by the client', () => {
-    expect(
-      CreateSaleSchema.safeParse({ lines: [{ ...line, unitPrice: '1.00' }] }).success,
-    ).toBe(false);
-    expect(
-      CreateSaleSchema.safeParse({ lines: [{ ...line, sellingPrice: '1.00' }] }).success,
-    ).toBe(false);
+    expect(CreateSaleSchema.safeParse({ lines: [{ ...line, unitPrice: '1.00' }] }).success).toBe(
+      false,
+    );
+    expect(CreateSaleSchema.safeParse({ lines: [{ ...line, sellingPrice: '1.00' }] }).success).toBe(
+      false,
+    );
     expect(CreateSaleSchema.safeParse({ lines: [line], total: '1.00' }).success).toBe(false);
   });
 
@@ -49,9 +49,9 @@ describe('CreateSaleSchema (SAL-01)', () => {
 describe('UpdateSaleSchema (edit a draft)', () => {
   it('takes the sale id and the full set of lines, under the same rules', () => {
     expect(UpdateSaleSchema.safeParse({ id: 's1', lines: [line] }).success).toBe(true);
-    expect(UpdateSaleSchema.safeParse({ id: 's1', lines: [{ ...line, quantity: 0 }] }).success).toBe(
-      false,
-    );
+    expect(
+      UpdateSaleSchema.safeParse({ id: 's1', lines: [{ ...line, quantity: 0 }] }).success,
+    ).toBe(false);
     expect(
       UpdateSaleSchema.safeParse({ id: 's1', lines: [{ ...line, unitPrice: '1.00' }] }).success,
     ).toBe(false);

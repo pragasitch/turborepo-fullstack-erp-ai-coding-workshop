@@ -373,7 +373,10 @@ describe('SalesController roles', () => {
     },
   );
 
-  it.each(['get', 'list'] as const)('store employees, managers and administrators may %s', async (method) => {
-    expect(await rolesOf(method)).toEqual(['STORE_EMPLOYEE', 'MANAGER', 'ADMINISTRATOR']);
-  });
+  it.each(['get', 'list'] as const)(
+    'store employees, managers and administrators may %s',
+    async (method) => {
+      expect(await rolesOf(method)).toEqual(['STORE_EMPLOYEE', 'MANAGER', 'ADMINISTRATOR']);
+    },
+  );
 });

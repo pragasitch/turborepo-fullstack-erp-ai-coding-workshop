@@ -15,10 +15,7 @@ import * as z from 'zod';
 const Money = z.string().regex(/^\d+\.\d{2}$/, 'จำนวนเงินต้องเป็นตัวเลขทศนิยมสองตำแหน่ง');
 
 /** A positive whole number of the product's base unit (SAL-01). */
-const Quantity = z
-  .number()
-  .int('จำนวนต้องเป็นจำนวนเต็ม')
-  .positive('จำนวนต้องมากกว่าศูนย์');
+const Quantity = z.number().int('จำนวนต้องเป็นจำนวนเต็ม').positive('จำนวนต้องมากกว่าศูนย์');
 
 /**
  * What the client may say about a line: which product and how many. Strict, so a
@@ -50,7 +47,10 @@ export type UpdateSaleInput = z.infer<typeof UpdateSaleSchema>;
  */
 export const IdempotencyKeySchema = z
   .string()
-  .regex(/^[A-Za-z0-9._:-]{8,128}$/, 'Idempotency-Key ต้องยาว 8-128 ตัวอักษร (a-z A-Z 0-9 . _ : -)');
+  .regex(
+    /^[A-Za-z0-9._:-]{8,128}$/,
+    'Idempotency-Key ต้องยาว 8-128 ตัวอักษร (a-z A-Z 0-9 . _ : -)',
+  );
 export type IdempotencyKey = z.infer<typeof IdempotencyKeySchema>;
 
 /** Header names are lower-case on the wire. */

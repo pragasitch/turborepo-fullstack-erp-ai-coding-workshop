@@ -227,7 +227,10 @@ function SaleForm() {
                   disabled={confirm.isPending || !draftKey}
                   onClick={() =>
                     draftKey &&
-                    confirm.mutate({ params: { id: draft.id }, headers: { 'idempotency-key': draftKey } })
+                    confirm.mutate({
+                      params: { id: draft.id },
+                      headers: { 'idempotency-key': draftKey },
+                    })
                   }
                 >
                   {confirm.isPending ? 'กำลังยืนยัน…' : 'ยืนยันการขาย'}
