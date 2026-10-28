@@ -16,6 +16,10 @@ export function RootLayout() {
               <Link to="/inventory" className="text-muted-foreground hover:text-foreground">
                 สต็อก
               </Link>
+              {/* Stock reports follow the same permission as the stock screen (RPT-02). */}
+              <Link to="/reports/stock" className="text-muted-foreground hover:text-foreground">
+                รายงานสต็อก
+              </Link>
               {/* Manager-only stock adjustments and audit trail (@Roles('MANAGER')). */}
               {user?.role === 'MANAGER' && (
                 <Link to="/adjustments" className="text-muted-foreground hover:text-foreground">
