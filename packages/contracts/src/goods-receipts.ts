@@ -141,7 +141,8 @@ export const goodsReceiptsContract = {
     .route({
       method: 'GET',
       path: '/goods-receipts/receivable-orders',
-      summary: 'Approved and Partially Received orders open for receiving, with outstanding quantities',
+      summary:
+        'Approved and Partially Received orders open for receiving, with outstanding quantities',
       tags: ['Goods receipts'],
     })
     .input(ReceivableOrderListQuerySchema)
@@ -168,7 +169,8 @@ export const goodsReceiptsContract = {
     .route({
       method: 'POST',
       path: '/goods-receipts',
-      summary: 'Confirm a goods receipt: increase stock and update the order, once per Idempotency-Key',
+      summary:
+        'Confirm a goods receipt: increase stock and update the order, once per Idempotency-Key',
       tags: ['Goods receipts'],
       inputStructure: 'detailed',
     })

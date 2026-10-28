@@ -97,7 +97,7 @@ export async function createDraftPurchaseOrder(
 }
 
 /** Take the row lock that serialises everything that changes one order. */
-async function lockPurchaseOrder(
+export async function lockPurchaseOrder(
   tx: Prisma.TransactionClient,
   id: string,
 ): Promise<PurchaseOrderRecord> {

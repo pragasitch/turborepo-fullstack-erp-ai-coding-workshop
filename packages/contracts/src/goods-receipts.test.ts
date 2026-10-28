@@ -94,8 +94,7 @@ describe('ConfirmGoodsReceiptHeadersSchema (GR-04)', () => {
       false,
     );
     expect(
-      ConfirmGoodsReceiptHeadersSchema.safeParse({ 'idempotency-key': 'has spaces in it' })
-        .success,
+      ConfirmGoodsReceiptHeadersSchema.safeParse({ 'idempotency-key': 'has spaces in it' }).success,
     ).toBe(false);
   });
 });

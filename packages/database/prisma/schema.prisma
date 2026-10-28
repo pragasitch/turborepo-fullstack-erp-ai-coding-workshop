@@ -37,6 +37,7 @@ model User {
   confirmedSales        Sale[]          @relation("SaleConfirmedBy")
   createdPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
   decidedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderDecidedBy")
+  goodsReceipts         GoodsReceipt[]  @relation("GoodsReceiptReceivedBy")
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 }
@@ -52,6 +53,7 @@ model Store {
   stockMovements    StockMovement[]
   sales             Sale[]
   purchaseOrders    PurchaseOrder[]
+  goodsReceipts     GoodsReceipt[]
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
 }
@@ -87,6 +89,7 @@ model Product {
   stockMovements     StockMovement[]
   saleLines          SaleLine[]
   purchaseOrderLines PurchaseOrderLine[]
+  goodsReceiptLines  GoodsReceiptLine[]
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
 }
@@ -272,6 +275,7 @@ model PurchaseOrder {
   decidedBy           User?               @relation("PurchaseOrderDecidedBy", fields: [decidedById], references: [id])
   decidedAt           DateTime?
   lines               PurchaseOrderLine[]
+  goodsReceipts       GoodsReceipt[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
@@ -298,4 +302,55 @@ model PurchaseOrderLine {
   lineTotal       Decimal       @db.Decimal(12, 2)
 
   @@unique([purchaseOrderId, productId])
+}
+
+/// Goods received against an Approved or Partially Received purchase order (GR-01..GR-05).
+/// A receipt exists only once confirmed: confirming issues `documentNumber`, increases the
+/// destination store's stock, appends RECEIPT movements and moves the order to Partially
+/// Received or Completed, in one transaction. A confirmed receipt is final (no edit, no
+/// cancel). The client's `Idempotency-Key` is stored with the receipt, unique per actor, so
+/// a replay finds the original instead of receiving again (GR-04).
+model GoodsReceipt {
+  id              String             @id @default(cuid())
+  /// "GR-000001" (Section 4.3).
+  documentNumber  String             @unique
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  /// The order's destination store, copied so a store-scoped read needs no join.
+  storeId         String
+  store           Store              @relation(fields: [storeId], references: [id])
+  receivedById    String
+  receivedBy      User               @relation("GoodsReceiptReceivedBy", fields: [receivedById], references: [id])
+  /// The `Idempotency-Key` header of the confirming request.
+  idempotencyKey  String
+  confirmedAt     DateTime           @default(now())
+  lines           GoodsReceiptLine[]
+  createdAt       DateTime           @default(now())
+
+  @@unique([receivedById, idempotencyKey])
+  @@index([purchaseOrderId])
+  @@index([storeId, createdAt])
+}
+
+/// One product received in one delivery. `sku`, `productName` and `unit` are snapshots
+/// taken at confirmation. Only lines with a positive quantity are recorded; a product the
+/// delivery did not include simply has no line. Cumulative received for an order line is
+/// the sum of these rows.
+model GoodsReceiptLine {
+  id             String       @id @default(cuid())
+  goodsReceiptId String
+  goodsReceipt   GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id])
+  sku            String
+  productName    String
+  unit           String
+  quantity       Int
+  /// Copied from the confirming request, like `GoodsReceipt.idempotencyKey`.
+  idempotencyKey String
+  /// Stock left in the store once this line was posted.
+  balanceAfter   Int
+
+  @@unique([goodsReceiptId, productId])
+  @@index([productId])
 }
