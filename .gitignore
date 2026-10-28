@@ -39,3 +39,12 @@ coverage/
 apps/e2e/.auth/
 apps/e2e/test-results/
 apps/e2e/playwright-report/
+
+# scratch / drafts
+.scratch/
+
+# AI agent skill installs (Prisma CLI skills, etc.)
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
