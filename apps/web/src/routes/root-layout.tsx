@@ -16,6 +16,14 @@ export function RootLayout() {
               <Link to="/inventory" className="text-muted-foreground hover:text-foreground">
                 สต็อก
               </Link>
+              {/* Store employees sell; managers and administrators view (@Roles on the API). */}
+              {(user?.role === 'STORE_EMPLOYEE' ||
+                user?.role === 'MANAGER' ||
+                user?.role === 'ADMINISTRATOR') && (
+                <Link to="/sales" className="text-muted-foreground hover:text-foreground">
+                  ขายสินค้า
+                </Link>
+              )}
               {/* Manager-only stock adjustments and audit trail (@Roles('MANAGER')). */}
               {user?.role === 'MANAGER' && (
                 <Link to="/adjustments" className="text-muted-foreground hover:text-foreground">
