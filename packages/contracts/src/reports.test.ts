@@ -5,6 +5,9 @@ import {
   DailySalesExportQuerySchema,
   DailySalesReportQuerySchema,
   DailySalesReportSchema,
+  MovementHistoryQuerySchema,
+  MovementHistoryReportSchema,
+  MovementHistoryRowSchema,
   StockReportExportQuerySchema,
   StockReportQuerySchema,
   StockReportSchema,
@@ -203,5 +206,127 @@ describe('CSV export routes (RPT-04)', () => {
     ['exportLowStock', '/reports/low-stock/export'],
   ] as const)('exposes %s as GET %s', (route, path) => {
     expect(contract.reports[route]['~orpc'].route).toMatchObject({ method: 'GET', path });
+  });
+});
+
+describe('MovementHistoryQuerySchema (RPT-03)', () => {
+  it('defaults to page 1 with 20 rows and no filters', () => {
+    expect(MovementHistoryQuerySchema.parse({})).toEqual({ page: 1, pageSize: 20 });
+  });
+
+  it('accepts product, store, type and an inclusive date range', () => {
+    expect(
+      MovementHistoryQuerySchema.parse({
+        productId: 'p1',
+        storeId: 's1',
+        type: 'SALE',
+        from: '2026-01-01',
+        to: '2026-01-31',
+      }),
+    ).toMatchObject({
+      productId: 'p1',
+      storeId: 's1',
+      type: 'SALE',
+      from: '2026-01-01',
+      to: '2026-01-31',
+    });
+  });
+
+  it('accepts each movement type and rejects an unknown one', () => {
+    for (const type of ['RECEIPT', 'SALE', 'ADJUSTMENT'] as const) {
+      expect(MovementHistoryQuerySchema.safeParse({ type }).success).toBe(true);
+    }
+    expect(MovementHistoryQuerySchema.safeParse({ type: 'TRANSFER' }).success).toBe(false);
+  });
+
+  it('rejects a reversed date range', () => {
+    expect(
+      MovementHistoryQuerySchema.safeParse({ from: '2026-01-31', to: '2026-01-01' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a page below 1 and a pageSize above 100', () => {
+    expect(MovementHistoryQuerySchema.safeParse({ page: 0 }).success).toBe(false);
+    expect(MovementHistoryQuerySchema.safeParse({ pageSize: 101 }).success).toBe(false);
+  });
+});
+
+describe('MovementHistoryRowSchema (RPT-03)', () => {
+  const row = {
+    id: 'm1',
+    productId: 'p1',
+    sku: 'SKU001',
+    productName: 'น้ำดื่ม',
+    unit: 'ขวด',
+    storeId: 's1',
+    storeCode: 'B01',
+    storeName: 'สาขาเซ็นทรัล',
+    type: 'SALE',
+    quantityChange: -2,
+    balanceBefore: 10,
+    balanceAfter: 8,
+    sourceDocumentType: 'SALE',
+    sourceDocumentId: 'SAL-000001',
+    actorId: 'u1',
+    actorName: 'พนักงาน',
+    createdAt: '2026-01-02T03:04:05.000Z',
+  };
+
+  it('accepts a movement row with its source document and actor', () => {
+    expect(MovementHistoryRowSchema.safeParse(row).success).toBe(true);
+  });
+
+  it('keeps createdAt as an ISO datetime', () => {
+    expect(MovementHistoryRowSchema.safeParse({ ...row, createdAt: 'not-a-date' }).success).toBe(
+      false,
+    );
+  });
+
+  it('rejects an unknown movement type', () => {
+    expect(MovementHistoryRowSchema.safeParse({ ...row, type: 'TRANSFER' }).success).toBe(false);
+  });
+});
+
+describe('MovementHistoryReportSchema (RPT-03)', () => {
+  const row = {
+    id: 'm1',
+    productId: 'p1',
+    sku: 'SKU001',
+    productName: 'น้ำดื่ม',
+    unit: 'ขวด',
+    storeId: 's1',
+    storeCode: 'B01',
+    storeName: 'สาขาเซ็นทรัล',
+    type: 'RECEIPT',
+    quantityChange: 5,
+    balanceBefore: 0,
+    balanceAfter: 5,
+    sourceDocumentType: 'GOODS_RECEIPT',
+    sourceDocumentId: 'GR-000001',
+    actorId: 'u1',
+    actorName: 'พนักงาน',
+    createdAt: '2026-01-02T03:04:05.000Z',
+  };
+
+  it('accepts a page of movement rows', () => {
+    expect(
+      MovementHistoryReportSchema.safeParse({ items: [row], total: 1, page: 1, pageSize: 20 })
+        .success,
+    ).toBe(true);
+  });
+
+  it('accepts an empty page', () => {
+    expect(
+      MovementHistoryReportSchema.safeParse({ items: [], total: 0, page: 1, pageSize: 20 }).success,
+    ).toBe(true);
+  });
+});
+
+describe('movement history route (RPT-03)', () => {
+  it('exposes a movement-history route under /reports', () => {
+    expect(contract.reports.movementHistory['~orpc'].route).toMatchObject({
+      method: 'GET',
+      path: '/reports/movement-history',
+    });
   });
 });
