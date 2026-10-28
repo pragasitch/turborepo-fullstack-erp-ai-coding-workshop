@@ -40,10 +40,10 @@ test.describe('purchase order drafts', () => {
     await addLine('SKU001', '2', '45.00');
     await page.getByRole('button', { name: 'บันทึกใบสั่งซื้อ' }).click();
 
-    const summary = page.getByText('ยอดรวมทั้งหมด 90.00 บาท');
-    await expect(summary).toBeVisible();
-    await expect(page.getByText('ผู้ขาย SUP01')).toBeVisible();
-    await expect(page.getByText(/สาขาปลายทาง B01/)).toBeVisible();
+    // The saved draft summary. "ยอดรวมทั้งหมด" and "สาขาปลายทาง" appear only in the summary,
+    // not in the list below (which reads "สาขา B01"), so these locate the summary unambiguously.
+    await expect(page.getByText('ยอดรวมทั้งหมด 90.00 บาท')).toBeVisible();
+    await expect(page.getByText(/ผู้ขาย SUP01 · สาขาปลายทาง B01/)).toBeVisible();
 
     // Edit: change the date and bump the quantity to 3 @ 50.00 = 150.00.
     await page.getByRole('button', { name: 'แก้ไขใบสั่งซื้อ' }).click();
@@ -53,6 +53,6 @@ test.describe('purchase order drafts', () => {
     await page.getByRole('button', { name: 'บันทึกการแก้ไขใบสั่งซื้อ' }).click();
 
     await expect(page.getByText('ยอดรวมทั้งหมด 150.00 บาท')).toBeVisible();
-    await expect(page.getByText(/รับวันที่ 2026-03-01/)).toBeVisible();
+    await expect(page.getByText(/สาขาปลายทาง B01 · รับวันที่ 2026-03-01/)).toBeVisible();
   });
 });
