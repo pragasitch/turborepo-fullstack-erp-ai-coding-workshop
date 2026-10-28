@@ -1,10 +1,14 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { storageState } from './accounts.js';
 
-// Demo (RPT-01, AC-08): A Manager views a daily sales report for B01 over a date range
-// and sees document count, units and total; a day with no sales shows zero totals and an
-// empty-state message. A store employee confirms a sale through the API so it has a real
-// Asia/Bangkok confirmation day; the Manager then reads the report for that day.
+// Demo (RPT-01, AC-08): A Manager views a daily sales report over a date range and sees
+// document count, units and total; a day with no sales shows zero totals and an empty-state
+// message. A store employee confirms a sale through the API so it has a real Asia/Bangkok
+// confirmation day; the Manager then reads the report for that day.
+//
+// This test uses store B02 and filters the report to B02, so its "today" totals are its own:
+// the other e2e tests sell at B01, and the e2e database is seeded once and shared across
+// parallel tests, so asserting an unfiltered B01 total would be non-deterministic.
 
 async function json<T>(response: Awaited<ReturnType<APIRequestContext['get']>>): Promise<T> {
   expect(response.ok(), `${response.url()} returned ${response.status()}`).toBeTruthy();
@@ -21,7 +25,7 @@ type StockRow = { sku: string; storeCode: string; productId: string; storeId: st
 test.describe('daily sales report', () => {
   test.use({ storageState: storageState('manager') });
 
-  test('a Manager sees B01 totals for a day with a sale, and an empty state for a day with none', async ({
+  test('a Manager sees B02 totals for a day with a sale, and an empty state for a day with none', async ({
     page,
     playwright,
     baseURL,
@@ -29,7 +33,7 @@ test.describe('daily sales report', () => {
     const suffix = Date.now();
     const sku = `E2E-RPT-${suffix}`;
 
-    // Set up this test's own product and B01 stock, then confirm a sale, all via the API.
+    // This test's own product and B02 stock, then one confirmed sale, all via the API.
     const admin = await playwright.request.newContext({
       baseURL,
       storageState: storageState('admin'),
@@ -38,12 +42,12 @@ test.describe('daily sales report', () => {
       baseURL,
       storageState: storageState('manager'),
     });
-    const staff = await playwright.request.newContext({
+    const staffB02 = await playwright.request.newContext({
       baseURL,
-      storageState: storageState('staff'),
+      storageState: storageState('staffB02'),
     });
 
-    // 2 units @ 60.00 → total 120.00 for one confirmed document.
+    // 2 units @ 60.00 → total 120.00 for one confirmed document at B02.
     await json(
       await admin.post('/api/products', {
         data: {
@@ -58,12 +62,12 @@ test.describe('daily sales report', () => {
     const stock = await json<{ items: StockRow[] }>(
       await manager.get(`/api/inventory?search=${sku}&pageSize=100`),
     );
-    const b01 = stock.items.find((row) => row.sku === sku && row.storeCode === 'B01')!;
+    const b02 = stock.items.find((row) => row.sku === sku && row.storeCode === 'B02')!;
     await json(
       await manager.post('/api/adjustments', {
         data: {
-          productId: b01.productId,
-          storeId: b01.storeId,
+          productId: b02.productId,
+          storeId: b02.storeId,
           quantityChange: 10,
           reason: 'ยอดยกมาสำหรับการทดสอบ',
         },
@@ -71,21 +75,24 @@ test.describe('daily sales report', () => {
     );
 
     const draft = await json<{ id: string }>(
-      await staff.post('/api/sales', {
-        data: { lines: [{ productId: b01.productId, quantity: 2 }] },
+      await staffB02.post('/api/sales', {
+        data: { lines: [{ productId: b02.productId, quantity: 2 }] },
       }),
     );
     await json(
-      await staff.post(`/api/sales/${draft.id}/confirm`, {
+      await staffB02.post(`/api/sales/${draft.id}/confirm`, {
         headers: { 'Idempotency-Key': `rpt-${suffix}` },
       }),
     );
 
     const today = bangkokToday();
 
-    // A day with a sale: the report shows one document, two units and 120.00.
+    // A day with a sale, filtered to B02: one document, two units and 120.00.
     await page.goto('/reports/daily-sales');
     await expect(page.getByRole('heading', { name: 'รายงานการขายรายวัน' })).toBeVisible();
+    const b02Option = page.getByRole('option', { name: /^B02 / });
+    await expect(b02Option).toHaveCount(1);
+    await page.getByLabel('สาขา').selectOption((await b02Option.getAttribute('value')) ?? '');
     await page.getByLabel('ตั้งแต่วันที่').fill(today);
     await page.getByLabel('ถึงวันที่').fill(today);
 
@@ -93,6 +100,7 @@ test.describe('daily sales report', () => {
     await expect(row).toBeVisible();
     await expect(row.getByRole('cell', { name: '2', exact: true })).toBeVisible();
     await expect(row.getByRole('cell', { name: '120.00', exact: true })).toBeVisible();
+    await expect(page.getByText(/ยอดขายรวม 120.00 บาท/)).toBeVisible();
 
     // A day with no sales (far future): zero totals and the empty-state message.
     await page.getByLabel('ตั้งแต่วันที่').fill('2099-01-01');
@@ -102,6 +110,6 @@ test.describe('daily sales report', () => {
 
     await admin.dispose();
     await manager.dispose();
-    await staff.dispose();
+    await staffB02.dispose();
   });
 });
