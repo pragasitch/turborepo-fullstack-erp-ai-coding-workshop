@@ -66,7 +66,7 @@ function productSkuTakenError() {
 export class ProductsController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Roles('ADMINISTRATOR')
+  @Roles('ADMINISTRATOR', 'PURCHASING_OFFICER')
   @Implement(contract.products.list)
   list() {
     return implement(contract.products.list).handler(async ({ input }) => {

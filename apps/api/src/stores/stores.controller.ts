@@ -29,15 +29,16 @@ function storeCodeTakenError() {
 }
 
 /**
- * Stores master data. Every route is Administrator-only, enforced at the API by
- * `@Roles('ADMINISTRATOR')` and the global `AuthGuard` (NFR-01). Duplicate codes surface
+ * Stores master data. Writes are Administrator-only; listing is also open to a Purchasing
+ * officer, who must read stores to pick a purchase order's destination (PO-01). Enforced at
+ * the API by `@Roles` and the global `AuthGuard` (NFR-01). Duplicate codes surface
  * the shared Thai error envelope (NFR-04), never a database error.
  */
 @Controller()
 export class StoresController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Roles('ADMINISTRATOR')
+  @Roles('ADMINISTRATOR', 'PURCHASING_OFFICER')
   @Implement(contract.stores.list)
   list() {
     return implement(contract.stores.list).handler(async ({ input }) => {
