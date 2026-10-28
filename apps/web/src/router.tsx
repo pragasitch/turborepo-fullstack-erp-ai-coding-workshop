@@ -6,6 +6,7 @@ import { InventoryPage } from '@/routes/inventory';
 import { LoginPage } from '@/routes/login';
 import { ProductsPage } from '@/routes/products';
 import { RootLayout } from '@/routes/root-layout';
+import { StockReportsPage } from '@/routes/stock-reports';
 import { StoresPage } from '@/routes/stores';
 import { SuppliersPage } from '@/routes/suppliers';
 
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
           { path: 'suppliers', element: <SuppliersPage /> },
           { path: 'products', element: <ProductsPage /> },
           { path: 'inventory', element: <InventoryPage /> },
+          { path: 'reports/stock', element: <StockReportsPage /> },
           { path: 'adjustments', element: <AdjustmentsPage /> },
         ],
       },
