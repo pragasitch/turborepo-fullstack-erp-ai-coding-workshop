@@ -167,7 +167,7 @@ describe('MovementHistoryPage (RPT-03)', () => {
 describe('navigation', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  function renderApp(user: unknown) {
+  function renderApp() {
     const router = createMemoryRouter(
       [
         {
@@ -201,7 +201,7 @@ describe('navigation', () => {
       'GET /products': { items: [], total: 0, page: 1, pageSize: 20 },
       'GET /reports/movement-history': report([]),
     });
-    renderApp(staffB01);
+    renderApp();
 
     fireEvent.click(await screen.findByRole('link', { name: 'ประวัติสต็อก' }));
 
