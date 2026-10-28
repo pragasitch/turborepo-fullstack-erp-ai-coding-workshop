@@ -85,9 +85,9 @@ describe('CreatePurchaseOrderSchema (PO-01)', () => {
 describe('UpdatePurchaseOrderSchema (edit a draft)', () => {
   it('takes the order id and the full header and lines, under the same rules', () => {
     expect(UpdatePurchaseOrderSchema.safeParse({ id: 'po1', ...base }).success).toBe(true);
-    expect(
-      UpdatePurchaseOrderSchema.safeParse({ id: 'po1', ...base, lines: [] }).success,
-    ).toBe(false);
+    expect(UpdatePurchaseOrderSchema.safeParse({ id: 'po1', ...base, lines: [] }).success).toBe(
+      false,
+    );
     expect(
       UpdatePurchaseOrderSchema.safeParse({
         id: 'po1',

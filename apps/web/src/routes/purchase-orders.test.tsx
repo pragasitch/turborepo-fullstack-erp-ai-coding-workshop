@@ -20,7 +20,17 @@ const admin = { ...officer, id: 'u2', role: 'ADMINISTRATOR' };
 
 const suppliers = {
   items: [
-    { id: 'sup1', code: 'SUP01', name: 'ผู้ขายกลาง', contactPerson: null, phone: null, email: null, address: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    {
+      id: 'sup1',
+      code: 'SUP01',
+      name: 'ผู้ขายกลาง',
+      contactPerson: null,
+      phone: null,
+      email: null,
+      address: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
   ],
   total: 1,
   page: 1,
@@ -28,7 +38,13 @@ const suppliers = {
 };
 const stores = {
   items: [
-    { id: 'b01', code: 'B01', name: 'สาขาเซ็นทรัล', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    {
+      id: 'b01',
+      code: 'B01',
+      name: 'สาขาเซ็นทรัล',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
   ],
   total: 1,
   page: 1,
@@ -53,7 +69,15 @@ const products = {
   pageSize: 100,
 };
 
-const line = (id: string, productId: string, sku: string, name: string, quantity: number, unitPrice: string, lineTotal: string) => ({
+const line = (
+  id: string,
+  productId: string,
+  sku: string,
+  name: string,
+  quantity: number,
+  unitPrice: string,
+  lineTotal: string,
+) => ({
   id,
   productId,
   sku,

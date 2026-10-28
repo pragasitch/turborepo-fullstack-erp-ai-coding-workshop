@@ -102,7 +102,11 @@ function PurchaseOrderForm() {
       supplierId,
       storeId,
       expectedReceiptDate,
-      lines: lines.map(({ productId, quantity, unitPrice }) => ({ productId, quantity, unitPrice })),
+      lines: lines.map(({ productId, quantity, unitPrice }) => ({
+        productId,
+        quantity,
+        unitPrice,
+      })),
     };
     if (editing && draft) update.mutate({ id: draft.id, ...payload });
     else save.mutate(payload);
@@ -249,7 +253,11 @@ function PurchaseOrderForm() {
             </ul>
           )}
 
-          <Button type="button" onClick={submit} disabled={!canSave || save.isPending || update.isPending}>
+          <Button
+            type="button"
+            onClick={submit}
+            disabled={!canSave || save.isPending || update.isPending}
+          >
             {editing ? 'บันทึกการแก้ไขใบสั่งซื้อ' : 'บันทึกใบสั่งซื้อ'}
           </Button>
 
