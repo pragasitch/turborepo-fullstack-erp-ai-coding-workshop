@@ -1,3 +1,4 @@
+import { Decimal } from '@prisma/client/runtime/client';
 import { hashPassword } from './password.js';
 import { Role, type PrismaClient } from './generated/prisma/client.js';
 
@@ -6,8 +7,8 @@ import { Role, type PrismaClient } from './generated/prisma/client.js';
  * dataset: the demo seed applies it non-destructively, and the Postgres integration
  * harness resets to it before every scenario.
  *
- * Not yet encoded: purchase order PO-DEMO-001 (20 x SKU001 @ 45.00, Approved for B01).
- * The purchase order models land with their own ticket, which extends this fixture.
+ * Includes purchase order PO-DEMO-001 (20 x SKU001 @ 45.00, Approved for B01) that the
+ * goods-receipt scenarios (AC-01..AC-04) receive against.
  */
 export const DEMO_PASSWORD = 'password';
 
@@ -17,6 +18,19 @@ export const FIXTURE_STORES = [
 ] as const;
 
 export const FIXTURE_SUPPLIER = { code: 'SUP01', name: 'SupplyOne Co Ltd' } as const;
+
+/** Section 8.1: an Approved order for B01 from SUP01, 20 packs of SKU001 at 45.00 each. */
+export const FIXTURE_PURCHASE_ORDER = {
+  documentNumber: 'PO-DEMO-001',
+  supplierCode: 'SUP01',
+  storeCode: 'B01',
+  sku: 'SKU001',
+  quantity: 20,
+  unitPrice: '45.00',
+  expectedReceiptDate: '2026-02-01',
+  createdByEmail: 'buyer01@erp.local',
+  approvedByEmail: 'manager01@erp.local',
+} as const;
 
 /**
  * Demo accounts, matching TOR Section 8.1 (plus an administrator for master data).
@@ -125,6 +139,51 @@ export async function seedSection81(prisma: PrismaClient) {
       });
     }
   }
+
+  await seedDemoPurchaseOrder(prisma);
+}
+
+/**
+ * PO-DEMO-001, created once and never touched again, so receipts already posted against
+ * it by a person demoing the app survive a restart of the dev stack.
+ */
+async function seedDemoPurchaseOrder(prisma: PrismaClient) {
+  const po = FIXTURE_PURCHASE_ORDER;
+  const [supplier, store, product, buyer, manager] = await Promise.all([
+    prisma.supplier.findUniqueOrThrow({ where: { code: po.supplierCode } }),
+    prisma.store.findUniqueOrThrow({ where: { code: po.storeCode } }),
+    prisma.product.findUniqueOrThrow({ where: { sku: po.sku } }),
+    prisma.user.findUniqueOrThrow({ where: { email: po.createdByEmail } }),
+    prisma.user.findUniqueOrThrow({ where: { email: po.approvedByEmail } }),
+  ]);
+  const lineTotal = new Decimal(po.unitPrice).mul(po.quantity);
+  await prisma.purchaseOrder.upsert({
+    where: { documentNumber: po.documentNumber },
+    update: {},
+    create: {
+      documentNumber: po.documentNumber,
+      status: 'APPROVED',
+      supplierId: supplier.id,
+      storeId: store.id,
+      expectedReceiptDate: new Date(po.expectedReceiptDate),
+      createdById: buyer.id,
+      total: lineTotal,
+      decisionReason: 'Section 8.1 sample order',
+      decidedById: manager.id,
+      decidedAt: new Date(),
+      lines: {
+        create: {
+          productId: product.id,
+          sku: product.sku,
+          productName: product.name,
+          unit: product.unit,
+          quantity: po.quantity,
+          unitPrice: new Decimal(po.unitPrice),
+          lineTotal,
+        },
+      },
+    },
+  });
 }
 
 /**
@@ -135,7 +194,7 @@ export async function seedSection81(prisma: PrismaClient) {
  */
 export async function resetToSection81Fixture(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE "PurchaseOrderLine", "PurchaseOrder", "SaleLine", "Sale", "StockMovement",
+    `TRUNCATE TABLE "GoodsReceiptLine", "GoodsReceipt", "PurchaseOrderLine", "PurchaseOrder", "SaleLine", "Sale", "StockMovement",
        "StockBalance", "DocumentSequence", "ProductReorderThreshold", "Product", "Supplier",
        "User", "Store"
      RESTART IDENTITY CASCADE`,

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCurrentUser } from '@/lib/auth';
+import { newIdempotencyKey } from '@/lib/idempotency-key';
 import { orpc } from '@/lib/orpc';
 
 const GENERIC_ERROR = 'เกิดข้อผิดพลาด ไม่สามารถดำเนินการได้';
@@ -37,18 +38,6 @@ function ErrorAlert({ error }: { error: unknown }) {
 }
 
 type BuilderLine = { productId: string; sku: string; productName: string; quantity: number };
-
-/**
- * A fresh key per draft, reused for every retry of that draft's confirmation (SAL-03).
- * `randomUUID` only exists in secure contexts (https, localhost); `getRandomValues`
- * works everywhere, so use it when the first is missing.
- */
-function newIdempotencyKey() {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('');
-}
 
 function SaleForm() {
   const queryClient = useQueryClient();
