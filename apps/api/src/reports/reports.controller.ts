@@ -6,6 +6,7 @@ import { PrismaService } from '../database/prisma.service.js';
 import { listStockLevels } from '../inventory/stock-levels.js';
 import { csvFile } from './csv.js';
 import { dailySalesReport } from './daily-sales-report.js';
+import { movementHistory } from './movement-history.js';
 
 /** Rows fetched per query while exporting; the contract caps a page at 100. */
 const EXPORT_PAGE_SIZE = 100;
@@ -81,6 +82,18 @@ export class ReportsController {
   lowStock(@CurrentUser() user: User) {
     return implement(contract.reports.lowStock).handler(({ input }) =>
       listStockLevels(this.prisma, user, input, { lowStockOnly: true }),
+    );
+  }
+
+  /**
+   * Stock movement history (RPT-03): the append-only ledger filtered by product, store,
+   * type and date range, with the source document on every row. Open to every signed-in
+   * role; a store employee is confined to their own store by the shared store-scope check.
+   */
+  @Implement(contract.reports.movementHistory)
+  movementHistory(@CurrentUser() user: User) {
+    return implement(contract.reports.movementHistory).handler(({ input }) =>
+      movementHistory(this.prisma, user, input),
     );
   }
 

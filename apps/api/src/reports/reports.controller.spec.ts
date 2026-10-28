@@ -248,3 +248,144 @@ describe('ReportsController role enforcement (RPT-01)', () => {
     },
   );
 });
+
+/** A movement-history row as the raw query returns it, with the window-count total. */
+function movementRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'm1',
+    productId: 'p1',
+    sku: 'SKU001',
+    productName: 'น้ำดื่ม',
+    unit: 'ขวด',
+    storeId: 's1',
+    storeCode: 'B01',
+    storeName: 'สาขาเซ็นทรัล',
+    type: 'SALE',
+    quantityChange: -2,
+    balanceBefore: 10,
+    balanceAfter: 8,
+    sourceDocumentType: 'SALE',
+    sourceDocumentId: 'SAL-000001',
+    actorId: 'u1',
+    actorName: 'พนักงาน',
+    createdAt: new Date('2026-01-02T03:04:05.000Z'),
+    total: 1,
+    ...overrides,
+  };
+}
+
+describe('ReportsController movement history (RPT-03)', () => {
+  it('maps a ledger row to the report shape with its source document and actor', async () => {
+    const controller = await createController(vi.fn().mockResolvedValue([movementRow()]));
+
+    const result = await call(controller.movementHistory(manager), defaults);
+
+    expect(result).toEqual({
+      items: [
+        {
+          id: 'm1',
+          productId: 'p1',
+          sku: 'SKU001',
+          productName: 'น้ำดื่ม',
+          unit: 'ขวด',
+          storeId: 's1',
+          storeCode: 'B01',
+          storeName: 'สาขาเซ็นทรัล',
+          type: 'SALE',
+          quantityChange: -2,
+          balanceBefore: 10,
+          balanceAfter: 8,
+          sourceDocumentType: 'SALE',
+          sourceDocumentId: 'SAL-000001',
+          actorId: 'u1',
+          actorName: 'พนักงาน',
+          createdAt: '2026-01-02T03:04:05.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+  });
+
+  it('returns an empty page with total 0 when nothing matches', async () => {
+    const controller = await createController(vi.fn().mockResolvedValue([]));
+
+    await expect(
+      call(controller.movementHistory(manager), { ...defaults, productId: 'nope' }),
+    ).resolves.toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
+  });
+
+  it('passes the product, store, type and date filters to the query as parameters', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const controller = await createController(queryRaw);
+
+    await call(controller.movementHistory(manager), {
+      ...defaults,
+      productId: 'p1',
+      storeId: 's1',
+      type: 'RECEIPT',
+      from: '2026-01-01',
+      to: '2026-01-31',
+    });
+
+    const sql = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
+    expect(sql.values).toEqual(
+      expect.arrayContaining(['p1', 's1', 'RECEIPT', '2026-01-01', '2026-01-31']),
+    );
+  });
+
+  it('lets a manager span every store', async () => {
+    const queryRaw = vi
+      .fn()
+      .mockResolvedValue([movementRow(), movementRow({ storeId: 's2', storeCode: 'B02' })]);
+    const controller = await createController(queryRaw);
+
+    const { items } = await call(controller.movementHistory(manager), defaults);
+
+    expect(items.map((i) => i.storeCode)).toEqual(['B01', 'B02']);
+  });
+
+  it('confines a store employee to their assigned store when no store is requested', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([movementRow()]);
+    const controller = await createController(queryRaw);
+
+    await call(controller.movementHistory(user('STORE_EMPLOYEE', 's1')), defaults);
+
+    const sql = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
+    expect(sql.values).toContain('s1');
+  });
+
+  it('rejects a store employee asking for another store and never queries', async () => {
+    const queryRaw = vi.fn();
+    const controller = await createController(queryRaw);
+
+    const error = await call(controller.movementHistory(user('STORE_EMPLOYEE', 's1')), {
+      ...defaults,
+      storeId: 's2',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ORPCError);
+    expect((error as ORPCError<string, unknown>).code).toBe('FORBIDDEN');
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects a store employee with no assigned store', async () => {
+    const queryRaw = vi.fn();
+    const controller = await createController(queryRaw);
+
+    await expect(
+      call(controller.movementHistory(user('STORE_EMPLOYEE', null)), defaults),
+    ).rejects.toThrow(ORPCError);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('is open to every signed-in role', async () => {
+    const controller = await createController(vi.fn());
+    const roles = new Reflector().get<string[]>(
+      ROLES_KEY,
+      Object.getPrototypeOf(controller).movementHistory as () => unknown,
+    );
+    expect(roles).toBeUndefined();
+  });
+});
