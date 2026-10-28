@@ -28,6 +28,17 @@ export function RootLayout() {
               <Link to="/reports/stock" className="text-muted-foreground hover:text-foreground">
                 รายงานสต็อก
               </Link>
+              {/* Daily sales report: same permission as the sales screen (RPT-01). */}
+              {(user?.role === 'STORE_EMPLOYEE' ||
+                user?.role === 'MANAGER' ||
+                user?.role === 'ADMINISTRATOR') && (
+                <Link
+                  to="/reports/daily-sales"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  รายงานการขาย
+                </Link>
+              )}
               {/* Officers raise purchase orders and managers approve them (@Roles on the API). */}
               {(user?.role === 'PURCHASING_OFFICER' || user?.role === 'MANAGER') && (
                 <Link to="/purchase-orders" className="text-muted-foreground hover:text-foreground">

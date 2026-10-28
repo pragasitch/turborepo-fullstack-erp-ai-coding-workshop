@@ -161,8 +161,9 @@ describe('StoresController role enforcement', () => {
     expect(await rolesOf(method)).toEqual(['ADMINISTRATOR']);
   });
 
-  // A Purchasing officer must read stores to pick a destination for a purchase order (PO-01).
-  it('lets an administrator or a purchasing officer list', async () => {
-    expect(await rolesOf('list')).toEqual(['ADMINISTRATOR', 'PURCHASING_OFFICER']);
+  // The store list is non-sensitive reference data that every store-picker screen needs
+  // (PO destination, daily sales report filter), so listing is open to any signed-in role.
+  it('leaves listing open to every signed-in role', async () => {
+    expect(await rolesOf('list')).toBeUndefined();
   });
 });

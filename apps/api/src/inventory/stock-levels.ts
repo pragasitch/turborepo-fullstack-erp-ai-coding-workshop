@@ -20,8 +20,11 @@ type StockLevelRow = {
  * Which store a stock query is confined to. A store employee is always confined to their
  * own store (NFR-01): asking for another store, or having none assigned, is rejected
  * by the shared store-scope check. Other roles may search every store or pick one.
+ *
+ * Shared with the daily sales report (RPT-01) so the stock and sales screens enforce the
+ * store scope identically.
  */
-function scopedStoreId(user: User, requested: string | undefined): string | undefined {
+export function scopedStoreId(user: User, requested: string | undefined): string | undefined {
   if (user.role !== 'STORE_EMPLOYEE') return requested;
   const storeId = requested ?? user.storeId ?? '';
   assertStoreScope(user, storeId);

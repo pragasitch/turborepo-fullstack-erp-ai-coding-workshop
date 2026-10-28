@@ -1,9 +1,11 @@
 import { Test } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { call } from '@orpc/server';
 import { ORPCError } from '@orpc/nest';
 import type { Prisma } from '@erp/database';
 import type { User } from '@erp/contracts';
 import { describe, expect, it, vi } from 'vitest';
+import { ROLES_KEY } from '../auth/auth.decorators.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { ReportsController } from './reports.controller.js';
 
@@ -132,4 +134,117 @@ describe.each(reports)('ReportsController %s report (RPT-02)', (_name, route) =>
     );
     expect(queryRaw).not.toHaveBeenCalled();
   });
+});
+
+/** The daily sales report issues two raw queries: the page of rows, then the day count. */
+function dailyController(rows: unknown[], count = rows.length) {
+  const queryRaw = vi
+    .fn()
+    .mockResolvedValueOnce(rows)
+    .mockResolvedValueOnce([{ count: BigInt(count) }]);
+  return { queryRaw, controller: createController(queryRaw) };
+}
+
+const dayRow = (overrides: Record<string, unknown> = {}) => ({
+  day: new Date('2026-01-02T00:00:00.000Z'),
+  documentCount: BigInt(2),
+  unitsSold: BigInt(5),
+  totalAmount: '300.00',
+  ...overrides,
+});
+
+const dailyInput = { from: '2026-01-02', to: '2026-01-02', page: 1, pageSize: 20 };
+
+describe('ReportsController daily sales report (RPT-01)', () => {
+  it('maps the per-day rows to count, units and a two-decimal total', async () => {
+    const { controller } = dailyController([dayRow()]);
+
+    const result = await call((await controller).dailySales(manager), dailyInput);
+
+    expect(result).toEqual({
+      items: [{ date: '2026-01-02', documentCount: 2, unitsSold: 5, totalAmount: '300.00' }],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+  });
+
+  it('returns an empty page with total 0 when no day matches', async () => {
+    const { controller } = dailyController([], 0);
+
+    await expect(
+      call((await controller).dailySales(manager), {
+        ...dailyInput,
+        from: '2026-02-01',
+        to: '2026-02-01',
+      }),
+    ).resolves.toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
+  });
+
+  it('confines a store employee to their assigned store when no store is requested', async () => {
+    const { queryRaw, controller } = dailyController([dayRow()]);
+
+    await call((await controller).dailySales(user('STORE_EMPLOYEE', 's1')), dailyInput);
+
+    const sql = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
+    expect(sql.values).toContain('s1');
+  });
+
+  it('rejects a store employee asking for another store and never queries', async () => {
+    const queryRaw = vi.fn();
+    const controller = await createController(queryRaw);
+
+    const error = await call(controller.dailySales(user('STORE_EMPLOYEE', 's1')), {
+      ...dailyInput,
+      storeId: 's2',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ORPCError);
+    expect((error as ORPCError<string, unknown>).code).toBe('FORBIDDEN');
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects a store employee with no assigned store', async () => {
+    const queryRaw = vi.fn();
+    const controller = await createController(queryRaw);
+
+    await expect(
+      call(controller.dailySales(user('STORE_EMPLOYEE', null)), dailyInput),
+    ).rejects.toThrow(ORPCError);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('lets a manager filter by an explicit store', async () => {
+    const { queryRaw, controller } = dailyController([dayRow()]);
+
+    await call((await controller).dailySales(manager), { ...dailyInput, storeId: 's2' });
+
+    const sql = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
+    expect(sql.values).toContain('s2');
+  });
+});
+
+describe('ReportsController role enforcement (RPT-01)', () => {
+  const reflector = new Reflector();
+
+  it('restricts the daily sales report to the sales-screen roles, not every signed-in user', async () => {
+    const controller = await createController(vi.fn());
+    const roles = reflector.get<string[]>(
+      ROLES_KEY,
+      Object.getPrototypeOf(controller).dailySales as () => unknown,
+    );
+    expect(roles).toEqual(['STORE_EMPLOYEE', 'MANAGER', 'ADMINISTRATOR']);
+  });
+
+  it.each(['stockOnHand', 'lowStock'] as const)(
+    'leaves the stock report %s open to every signed-in role',
+    async (method) => {
+      const controller = await createController(vi.fn());
+      const roles = reflector.get<string[]>(
+        ROLES_KEY,
+        Object.getPrototypeOf(controller)[method] as () => unknown,
+      );
+      expect(roles).toBeUndefined();
+    },
+  );
 });
