@@ -6,6 +6,7 @@ import { GoodsReceiptsPage } from '@/routes/goods-receipts';
 import { HomePage } from '@/routes/home';
 import { InventoryPage } from '@/routes/inventory';
 import { LoginPage } from '@/routes/login';
+import { MovementHistoryPage } from '@/routes/movement-history';
 import { ProductsPage } from '@/routes/products';
 import { PurchaseOrdersPage } from '@/routes/purchase-orders';
 import { RootLayout } from '@/routes/root-layout';
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
           { path: 'inventory', element: <InventoryPage /> },
           { path: 'reports/stock', element: <StockReportsPage /> },
           { path: 'reports/daily-sales', element: <DailySalesReportPage /> },
+          { path: 'reports/movement-history', element: <MovementHistoryPage /> },
           { path: 'adjustments', element: <AdjustmentsPage /> },
           { path: 'sales', element: <SalesPage /> },
           { path: 'purchase-orders', element: <PurchaseOrdersPage /> },

@@ -36,6 +36,13 @@ export function RootLayout() {
               <Link to="/reports/stock" className="text-muted-foreground hover:text-foreground">
                 รายงานสต็อก
               </Link>
+              {/* Movement history: every signed-in role; the API scopes store employees (RPT-03). */}
+              <Link
+                to="/reports/movement-history"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ประวัติสต็อก
+              </Link>
               {/* Daily sales report: same permission as the sales screen (RPT-01). */}
               {(user?.role === 'STORE_EMPLOYEE' ||
                 user?.role === 'MANAGER' ||
