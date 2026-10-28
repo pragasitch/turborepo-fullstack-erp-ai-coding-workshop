@@ -1,7 +1,7 @@
 import { ORPCError } from '@orpc/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { ErrorEnvelope, PurchaseOrder } from '@erp/contracts';
+import type { ErrorEnvelope, PurchaseOrder, PurchaseOrderStatus, User } from '@erp/contracts';
 import { PurchaseOrderLineInputSchema } from '@erp/contracts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,16 @@ function ErrorAlert({ error }: { error: unknown }) {
     </p>
   );
 }
+
+const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
+  DRAFT: 'ฉบับร่าง',
+  PENDING_APPROVAL: 'รออนุมัติ',
+  APPROVED: 'อนุมัติแล้ว',
+  PARTIALLY_RECEIVED: 'รับบางส่วน',
+  COMPLETED: 'รับครบแล้ว',
+  REJECTED: 'ไม่อนุมัติ',
+  CANCELLED: 'ยกเลิกแล้ว',
+};
 
 type BuilderLine = {
   productId: string;
@@ -47,6 +57,9 @@ function PurchaseOrderForm() {
   const [unitPrice, setUnitPrice] = useState('');
   const [draft, setDraft] = useState<PurchaseOrder | null>(null);
   const [editing, setEditing] = useState(false);
+  // The list is the freshest view of the saved draft: once it is submitted it is frozen (PO-03).
+  const orders = useQuery(orpc.purchaseOrders.list.queryOptions({ input: {} }));
+  const draftStatus = orders.data?.items.find((item) => item.id === draft?.id)?.status;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.purchaseOrders.key() });
 
@@ -269,9 +282,15 @@ function PurchaseOrderForm() {
       {showDraft && (
         <div className="space-y-3">
           <PurchaseOrderSummary po={draft} />
-          <Button type="button" variant="outline" onClick={startEditing}>
-            แก้ไขใบสั่งซื้อ
-          </Button>
+          {(draftStatus ?? draft.status) === 'DRAFT' ? (
+            <Button type="button" variant="outline" onClick={startEditing}>
+              แก้ไขใบสั่งซื้อ
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              ใบสั่งซื้อนี้ไม่ใช่ฉบับร่างแล้ว จึงแก้ไขไม่ได้
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -320,8 +339,51 @@ function PurchaseOrderSummary({ po }: { po: PurchaseOrder }) {
   );
 }
 
+type Decision = 'approve' | 'reject' | 'cancel';
+
+const DECISION_TEXT: Record<Decision, { open: string; confirm: string }> = {
+  approve: { open: 'อนุมัติใบสั่งซื้อ', confirm: 'ยืนยันการอนุมัติ' },
+  reject: { open: 'ปฏิเสธใบสั่งซื้อ', confirm: 'ยืนยันการปฏิเสธ' },
+  cancel: { open: 'ยกเลิกใบสั่งซื้อ', confirm: 'ยืนยันการยกเลิก' },
+};
+
+/** Which actions the signed-in user is offered on an order. The API enforces the same rules. */
+function actionsFor(po: PurchaseOrder, user: User | null | undefined) {
+  const isManager = user?.role === 'MANAGER';
+  const isOfficer = user?.role === 'PURCHASING_OFFICER';
+  const open = po.status === 'DRAFT' || po.status === 'PENDING_APPROVAL';
+  return {
+    submit: isOfficer && po.status === 'DRAFT',
+    decisions: [
+      ...(isManager && po.status === 'PENDING_APPROVAL' ? (['approve', 'reject'] as const) : []),
+      ...(open && (isManager || (isOfficer && po.createdById === user?.id))
+        ? (['cancel'] as const)
+        : []),
+    ] satisfies Decision[],
+  };
+}
+
 function PurchaseOrderList() {
+  const user = useCurrentUser();
+  const queryClient = useQueryClient();
   const orders = useQuery(orpc.purchaseOrders.list.queryOptions({ input: {} }));
+  const [deciding, setDeciding] = useState<{ id: string; action: Decision } | null>(null);
+  const [reason, setReason] = useState('');
+
+  const onSuccess = () => {
+    setDeciding(null);
+    setReason('');
+    return queryClient.invalidateQueries({ queryKey: orpc.purchaseOrders.key() });
+  };
+  const submit = useMutation(orpc.purchaseOrders.submit.mutationOptions({ onSuccess }));
+  const mutations = {
+    approve: useMutation(orpc.purchaseOrders.approve.mutationOptions({ onSuccess })),
+    reject: useMutation(orpc.purchaseOrders.reject.mutationOptions({ onSuccess })),
+    cancel: useMutation(orpc.purchaseOrders.cancel.mutationOptions({ onSuccess })),
+  };
+  const all = [submit, ...Object.values(mutations)];
+  const failure = all.find((mutation) => mutation.error)?.error;
+  const busy = all.some((mutation) => mutation.isPending);
 
   if (orders.isPending) {
     return <p className="text-muted-foreground">กำลังโหลด…</p>;
@@ -333,24 +395,102 @@ function PurchaseOrderList() {
     return <p className="text-muted-foreground">ยังไม่มีใบสั่งซื้อ</p>;
   }
 
+  const startDecision = (id: string, action: Decision) => {
+    all.forEach((mutation) => mutation.reset());
+    setReason('');
+    setDeciding({ id, action });
+  };
+
   return (
-    <ul className="divide-y rounded-md border">
-      {orders.data.items.map((po) => (
-        <li key={po.id} className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="flex flex-col">
-            <span className="font-medium">{po.documentNumber ?? 'ฉบับร่าง'}</span>
-            <span className="text-sm text-muted-foreground">
-              ผู้ขาย {po.supplierCode} · สาขา {po.storeCode} · รับวันที่ {po.expectedReceiptDate}
-            </span>
-          </div>
-          <span>{po.total} บาท</span>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-3">
+      <ul className="divide-y rounded-md border">
+        {orders.data.items.map((po) => {
+          const actions = actionsFor(po, user);
+          const open = deciding?.id === po.id ? deciding.action : null;
+          return (
+            <li key={po.id} className="space-y-2 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col">
+                  <span className="font-medium">
+                    {po.documentNumber ?? 'ใบสั่งซื้อ'} · {STATUS_LABEL[po.status]}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    ผู้ขาย {po.supplierCode} · สาขา {po.storeCode} · รับวันที่{' '}
+                    {po.expectedReceiptDate}
+                  </span>
+                  {po.decisionReason && (
+                    <span className="text-sm text-muted-foreground">
+                      เหตุผล: {po.decisionReason}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span>{po.total} บาท</span>
+                  {actions.submit && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => {
+                        all.forEach((mutation) => mutation.reset());
+                        submit.mutate({ id: po.id });
+                      }}
+                    >
+                      ส่งขออนุมัติ
+                    </Button>
+                  )}
+                  {actions.decisions.map((action) => (
+                    <Button
+                      key={action}
+                      type="button"
+                      size="sm"
+                      variant={action === 'approve' ? 'default' : 'outline'}
+                      disabled={busy}
+                      onClick={() => startDecision(po.id, action)}
+                    >
+                      {DECISION_TEXT[action].open}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {open && (
+                <form
+                  className="flex items-end gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!reason.trim()) return;
+                    mutations[open].mutate({ id: po.id, reason });
+                  }}
+                >
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor={`po-reason-${po.id}`}>เหตุผล</Label>
+                    <Input
+                      id={`po-reason-${po.id}`}
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" size="sm" disabled={busy || !reason.trim()}>
+                    {DECISION_TEXT[open].confirm}
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setDeciding(null)}>
+                    ปิด
+                  </Button>
+                </form>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {failure && <ErrorAlert error={failure} />}
+    </div>
   );
 }
 
-/** Create and edit draft purchase orders (PO-01). Purchasing officer only. */
+/**
+ * Purchase orders (PO-01..PO-04). A Purchasing officer drafts, edits and submits; a Manager
+ * approves or rejects with a reason; either can cancel a draft or pending order.
+ */
 export function PurchaseOrdersPage() {
   const user = useCurrentUser();
   const canManage = user?.role === 'PURCHASING_OFFICER';
@@ -360,7 +500,7 @@ export function PurchaseOrdersPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">ใบสั่งซื้อ</h1>
         <p className="text-muted-foreground">
-          สร้างและแก้ไขใบสั่งซื้อฉบับร่างสำหรับผู้ขายและสาขาปลายทาง
+          สร้างและแก้ไขใบสั่งซื้อฉบับร่าง ส่งขออนุมัติ และติดตามสถานะการอนุมัติ
         </p>
       </div>
       {canManage && (
