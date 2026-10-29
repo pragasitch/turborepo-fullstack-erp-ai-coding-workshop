@@ -48,3 +48,6 @@ apps/e2e/playwright-report/
 .claude/
 .windsurf/
 skills-lock.json
+
+# Local AI semantic-review artifacts (not part of the project)
+semantic-review/
