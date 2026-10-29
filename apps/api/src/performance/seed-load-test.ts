@@ -14,10 +14,18 @@ async function main(): Promise<void> {
   const movements = Number(process.env.LOAD_MOVEMENTS ?? 10_000);
 
   const prisma = createPrismaClient(url);
+  // Log the target without its credentials (secure-by-default): host and database only.
+  let target = '(unparseable DATABASE_URL)';
   try {
-    console.log(`Seeding ${products} products and ${movements} movements into ${url} …`);
+    const parsed = new URL(url);
+    target = `${parsed.host}${parsed.pathname}`;
+  } catch {
+    // keep the placeholder
+  }
+  try {
+    console.log(`Seeding ${products} products and ${movements} movements into ${target} …`);
     const { manager, storeIds } = await seedPerformanceDataset(prisma, { products, movements });
-    console.log(`Done. Manager ${manager.email} (password "password"), stores ${storeIds.length}.`);
+    console.log(`Done. Manager ${manager.email} (demo password), stores ${storeIds.length}.`);
   } finally {
     await prisma.$disconnect();
   }

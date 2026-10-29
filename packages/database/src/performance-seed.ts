@@ -1,4 +1,5 @@
 import { hashPassword } from './password.js';
+import { DEMO_PASSWORD, truncateAllErpTables } from './fixture.js';
 import {
   Role,
   type Prisma,
@@ -41,8 +42,14 @@ export type PerformanceSeed = {
 const STORE_CODES = ['B01', 'B02'] as const;
 const BATCH = 1_000;
 
-/** Zero-padded SKU for product n (1-based), e.g. 500 -> "SKU000500". */
-function sku(n: number): string {
+/** The Manager the load test and the integration spec sign in as. */
+export const PERFORMANCE_MANAGER = {
+  email: 'perf.manager@erp.local',
+  password: DEMO_PASSWORD,
+} as const;
+
+/** Zero-padded SKU for product n (1-based), e.g. 500 -> "SKU000500". Shared with the harness. */
+export function performanceSku(n: number): string {
   return `SKU${String(n).padStart(6, '0')}`;
 }
 
@@ -52,12 +59,7 @@ export async function seedPerformanceDataset(
 ): Promise<PerformanceSeed> {
   const { products: productCount, movements: movementCount } = options;
 
-  await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE "GoodsReceiptLine", "GoodsReceipt", "PurchaseOrderLine", "PurchaseOrder", "SaleLine", "Sale", "StockMovement",
-       "StockBalance", "DocumentSequence", "ProductReorderThreshold", "Product", "Supplier",
-       "User", "Store"
-     RESTART IDENTITY CASCADE`,
-  );
+  await truncateAllErpTables(prisma);
 
   const storeIds: string[] = [];
   for (const [index, code] of STORE_CODES.entries()) {
@@ -67,10 +69,10 @@ export async function seedPerformanceDataset(
     storeIds.push(store.id);
   }
 
-  const passwordHash = await hashPassword('password');
+  const passwordHash = await hashPassword(PERFORMANCE_MANAGER.password);
   const manager = await prisma.user.create({
     data: {
-      email: 'perf.manager@erp.local',
+      email: PERFORMANCE_MANAGER.email,
       name: 'Performance Manager',
       role: Role.MANAGER,
       passwordHash,
@@ -81,7 +83,7 @@ export async function seedPerformanceDataset(
   const productData: Prisma.ProductCreateManyInput[] = [];
   for (let n = 1; n <= productCount; n += 1) {
     productData.push({
-      sku: sku(n),
+      sku: performanceSku(n),
       name: `สินค้า ${n}`,
       category: 'ทดสอบประสิทธิภาพ',
       unit: 'ชิ้น',
