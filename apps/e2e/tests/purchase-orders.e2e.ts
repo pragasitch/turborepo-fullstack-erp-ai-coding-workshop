@@ -71,8 +71,11 @@ test.describe('purchase order approval', () => {
     return `${n}.00`;
   }
 
+  // Locate an order row by its (unique) total. Plain-string `hasText` is a substring match,
+  // which sidesteps a lookbehind-regex matcher that failed to match a present row in CI; the
+  // six-digit random totals never nest inside one another, so a substring is unambiguous.
   const rowWithTotal = (page: Page, price: string) =>
-    page.getByRole('listitem').filter({ hasText: new RegExp(`(?<!\\d)${price} บาท`) });
+    page.getByRole('listitem').filter({ hasText: `${price} บาท` });
 
   /** The officer drafts one SKU001 line for SUP01 -> B01 on the page and returns the new id. */
   async function createDraft(page: Page, price: string) {
