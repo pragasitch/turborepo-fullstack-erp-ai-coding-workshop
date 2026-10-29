@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "load-test:seed": "tsx src/performance/seed-load-test.ts",
+    "load-test": "tsx src/performance/run-load-test.ts"
   },
   "dependencies": {
     "@erp/contracts": "workspace:*",
@@ -39,6 +41,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^24.0.0",
     "eslint": "^10.13.0",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vitest": "^5.0.5"
   }

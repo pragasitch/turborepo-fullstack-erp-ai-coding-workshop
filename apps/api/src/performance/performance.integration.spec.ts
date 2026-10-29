@@ -53,19 +53,21 @@ afterAll(async () => {
  * SET and EXPLAIN run on one connection (a transaction) so the SET actually applies.
  */
 async function plan(sql: string, indexOnly = false): Promise<string> {
+  const explain = async (
+    run: (query: string) => Promise<{ 'QUERY PLAN': unknown }[]>,
+  ): Promise<string> => {
+    const rows = await run(`EXPLAIN (FORMAT JSON) ${sql}`);
+    const first = rows[0];
+    if (!first) throw new Error('EXPLAIN returned no plan');
+    return JSON.stringify(first['QUERY PLAN']);
+  };
   if (!indexOnly) {
-    const rows = await prisma.$queryRawUnsafe<{ 'QUERY PLAN': unknown }[]>(
-      `EXPLAIN (FORMAT JSON) ${sql}`,
-    );
-    return JSON.stringify(rows[0]['QUERY PLAN']);
+    return explain((query) => prisma.$queryRawUnsafe<{ 'QUERY PLAN': unknown }[]>(query));
   }
   return prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe('ANALYZE "Product", "Store", "StockMovement"');
     await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off');
-    const rows = await tx.$queryRawUnsafe<{ 'QUERY PLAN': unknown }[]>(
-      `EXPLAIN (FORMAT JSON) ${sql}`,
-    );
-    return JSON.stringify(rows[0]['QUERY PLAN']);
+    return explain((query) => tx.$queryRawUnsafe<{ 'QUERY PLAN': unknown }[]>(query));
   });
 }
 
