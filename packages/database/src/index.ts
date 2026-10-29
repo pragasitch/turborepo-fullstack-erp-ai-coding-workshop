@@ -3,6 +3,7 @@ import { PrismaClient } from './generated/prisma/client.js';
 
 export * from './generated/prisma/client.js';
 export * from './fixture.js';
+export * from './performance-seed.js';
 // Money columns come back as Decimal. The bundled `Prisma` namespace types drop its value.
 export { Decimal } from '@prisma/client/runtime/client';
 export { hashPassword, verifyPassword } from './password.js';
