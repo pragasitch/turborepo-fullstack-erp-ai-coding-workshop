@@ -22,6 +22,13 @@ export default defineConfig({
   fullyParallel: true,
   // A test that passes on retry is a bug in the test. Zero retries, and a trace for every failure.
   retries: 0,
+  // One API + one web server back every worker. On CI (2 shared vCPUs) a flood of parallel
+  // browser contexts starves them, so a correct UI can take longer than Playwright's 5s
+  // default to settle (a freshly created row refetching into a list, say). Cap the workers
+  // and give assertions real headroom so the suite stays deterministic rather than timing
+  // out under load. Locally (reusing the Docker stack) parallelism is left unbounded.
+  workers: isCI ? 2 : undefined,
+  expect: { timeout: 15_000 },
   forbidOnly: isCI,
   reporter: isCI
     ? [['github'], ['html', { open: 'never' }]]
