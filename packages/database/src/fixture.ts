@@ -187,17 +187,26 @@ async function seedDemoPurchaseOrder(prisma: PrismaClient) {
 }
 
 /**
- * Wipe every ERP table and re-apply the Section 8.1 data, so each scenario starts from
- * the same state and never depends on a previous one. TRUNCATE is the one operation the
- * immutable-ledger triggers do not block. DESTRUCTIVE: only ever point this at a
- * throwaway test database.
+ * Every ERP table, in an order safe for a single TRUNCATE ... CASCADE. The one list both
+ * the Section 8.1 reset and the performance seed truncate, so a new table is added in one
+ * place. TRUNCATE is the only write the immutable-ledger triggers do not block.
+ * DESTRUCTIVE: only ever point this at a throwaway database.
  */
-export async function resetToSection81Fixture(prisma: PrismaClient) {
+export async function truncateAllErpTables(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(
     `TRUNCATE TABLE "GoodsReceiptLine", "GoodsReceipt", "PurchaseOrderLine", "PurchaseOrder", "SaleLine", "Sale", "StockMovement",
-       "StockBalance", "DocumentSequence", "ProductReorderThreshold", "Product", "Supplier",
+       "StockBalance", "DocumentSequence", "ProductReorderThreshold", "AuditLog", "Product", "Supplier",
        "User", "Store"
      RESTART IDENTITY CASCADE`,
   );
+}
+
+/**
+ * Wipe every ERP table and re-apply the Section 8.1 data, so each scenario starts from
+ * the same state and never depends on a previous one. DESTRUCTIVE: only ever point this at
+ * a throwaway test database.
+ */
+export async function resetToSection81Fixture(prisma: PrismaClient) {
+  await truncateAllErpTables(prisma);
   await seedSection81(prisma);
 }

@@ -49,9 +49,15 @@ export async function listStockLevels(
   const { page, pageSize, search } = query;
   const storeId = scopedStoreId(user, query.storeId);
 
+  // Each text predicate references a single table so the trigram indexes (NFR-05) can serve
+  // it: a cross-table OR over the Product x Store join is not sargable and forces a scan.
+  // Semantics are unchanged — a (product, store) row matches when the product matches the
+  // term or the store does.
   const searchFilter = search
-    ? Prisma.sql`AND (p."sku" ILIKE ${`%${search}%`} OR p."name" ILIKE ${`%${search}%`}
-        OR s."code" ILIKE ${`%${search}%`} OR s."name" ILIKE ${`%${search}%`})`
+    ? Prisma.sql`AND (
+        p."id" IN (SELECT "id" FROM "Product" WHERE "sku" ILIKE ${`%${search}%`} OR "name" ILIKE ${`%${search}%`})
+        OR s."id" IN (SELECT "id" FROM "Store" WHERE "code" ILIKE ${`%${search}%`} OR "name" ILIKE ${`%${search}%`})
+      )`
     : Prisma.empty;
   const storeFilter = storeId ? Prisma.sql`AND s."id" = ${storeId}` : Prisma.empty;
   const lowStockFilter = options.lowStockOnly
