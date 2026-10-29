@@ -17,9 +17,7 @@ async function main(): Promise<void> {
   try {
     console.log(`Seeding ${products} products and ${movements} movements into ${url} …`);
     const { manager, storeIds } = await seedPerformanceDataset(prisma, { products, movements });
-    console.log(
-      `Done. Manager ${manager.email} (password "password"), stores ${storeIds.length}.`,
-    );
+    console.log(`Done. Manager ${manager.email} (password "password"), stores ${storeIds.length}.`);
   } finally {
     await prisma.$disconnect();
   }

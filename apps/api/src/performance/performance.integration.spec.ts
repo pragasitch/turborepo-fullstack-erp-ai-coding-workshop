@@ -1,8 +1,4 @@
-import {
-  createPrismaClient,
-  seedPerformanceDataset,
-  type PrismaClient,
-} from '@erp/database';
+import { createPrismaClient, seedPerformanceDataset, type PrismaClient } from '@erp/database';
 import type { User } from '@erp/contracts';
 import { call } from '@orpc/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
