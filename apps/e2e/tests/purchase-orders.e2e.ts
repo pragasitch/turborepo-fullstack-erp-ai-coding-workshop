@@ -71,8 +71,11 @@ test.describe('purchase order approval', () => {
     return `${n}.00`;
   }
 
+  // Locate an order row by its (unique) total. Plain-string `hasText` is a substring match,
+  // which sidesteps a lookbehind-regex matcher that failed to match a present row in CI; the
+  // six-digit random totals never nest inside one another, so a substring is unambiguous.
   const rowWithTotal = (page: Page, price: string) =>
-    page.getByRole('listitem').filter({ hasText: new RegExp(`(?<!\\d)${price} บาท`) });
+    page.getByRole('listitem').filter({ hasText: `${price} บาท` });
 
   /** The officer drafts one SKU001 line for SUP01 -> B01 on the page and returns the new id. */
   async function createDraft(page: Page, price: string) {
@@ -90,10 +93,23 @@ test.describe('purchase order approval', () => {
   }
 
   async function submitDraft(page: Page, price: string) {
+    // Re-read the list from a fresh fetch rather than waiting on the draft-summary view's
+    // background refetch, which under parallel CI load can take longer than any assertion
+    // timeout to land in this separate list query. A reload fetches the list on mount, so
+    // the just-created draft is deterministically present.
+    await page.reload();
     const row = rowWithTotal(page, price);
     await expect(row).toContainText('ฉบับร่าง');
+    const submitted = page.waitForResponse(
+      (response) =>
+        /\/api\/purchase-orders\/[^/]+\/submit$/.test(response.url()) &&
+        response.request().method() === 'POST',
+    );
     await row.getByRole('button', { name: 'ส่งขออนุมัติ' }).click();
-    await expect(row).toContainText('รออนุมัติ');
+    await submitted;
+    // Same reason: read the submitted status from a fresh list fetch, not the in-place refetch.
+    await page.reload();
+    await expect(rowWithTotal(page, price)).toContainText('รออนุมัติ');
   }
 
   test('a Purchasing officer submits a draft, a Manager approves it with a reason, an illegal transition is rejected in Thai, and an Approved order cannot be edited', async ({

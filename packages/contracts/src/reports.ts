@@ -83,7 +83,74 @@ export type StockReportExportQuery = z.infer<typeof StockReportExportQuerySchema
 
 export const CsvFileSchema = z.file();
 
+/** The three kinds of stock movement, mirroring the `StockMovementType` enum (INV-02). */
+export const MovementTypeSchema = z.enum(['RECEIPT', 'SALE', 'ADJUSTMENT']);
+export type MovementType = z.infer<typeof MovementTypeSchema>;
+
+/**
+ * Movement history query (RPT-03). Filters the append-only stock ledger by a free-text
+ * product `search` (SKU or product name, like the stock reports), `storeId`, movement
+ * `type` and an inclusive Asia/Bangkok calendar date range. Every filter is optional; a
+ * Store employee is confined to their own store by the API regardless of `storeId`.
+ * Results are newest-first and paginated.
+ */
+export const MovementHistoryQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+    search: z.string().trim().optional(),
+    storeId: z.string().optional(),
+    type: MovementTypeSchema.optional(),
+    from: CalendarDate.optional(),
+    to: CalendarDate.optional(),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, rangeOrderError);
+export type MovementHistoryQuery = z.infer<typeof MovementHistoryQuerySchema>;
+
+/**
+ * One stock-ledger entry (INV-02) as the report shows it: the movement with its product
+ * and store names, the document that caused it (`sourceDocumentType` + `sourceDocumentId`,
+ * e.g. "GOODS_RECEIPT" / "GR-000001"), and who posted it. `createdAt` is an ISO instant.
+ */
+export const MovementHistoryRowSchema = z.object({
+  id: z.string(),
+  productId: z.string(),
+  sku: z.string(),
+  productName: z.string(),
+  unit: z.string(),
+  storeId: z.string(),
+  storeCode: z.string(),
+  storeName: z.string(),
+  type: MovementTypeSchema,
+  quantityChange: z.number().int(),
+  balanceBefore: z.number().int().min(0),
+  balanceAfter: z.number().int().min(0),
+  sourceDocumentType: z.string(),
+  sourceDocumentId: z.string(),
+  actorId: z.string(),
+  actorName: z.string(),
+  createdAt: z.iso.datetime(),
+});
+export type MovementHistoryRow = z.infer<typeof MovementHistoryRowSchema>;
+
+export const MovementHistoryReportSchema = z.object({
+  items: z.array(MovementHistoryRowSchema),
+  total: z.number().int().min(0),
+  page: z.number().int().min(1),
+  pageSize: z.number().int().min(1),
+});
+export type MovementHistoryReport = z.infer<typeof MovementHistoryReportSchema>;
+
 export const reportsContract = {
+  movementHistory: oc
+    .route({
+      method: 'GET',
+      path: '/reports/movement-history',
+      summary: 'Stock movement history by product, store, type and date range (store-scoped)',
+      tags: ['Reports'],
+    })
+    .input(MovementHistoryQuerySchema)
+    .output(MovementHistoryReportSchema),
   stockOnHand: oc
     .route({
       method: 'GET',
