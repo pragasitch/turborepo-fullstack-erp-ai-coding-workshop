@@ -99,20 +99,20 @@ export async function seedPerformanceDataset(
 
   // Movements: positive RECEIPT rows round-robin over (product, store), with a per-pair
   // running balance and a strictly increasing timestamp so history and balances are valid.
-  const balances = new Map<string, number>();
-  const key = (productId: string, storeId: string) => `${productId}:${storeId}`;
+  type Balance = { productId: string; storeId: string; quantity: number };
+  const balances = new Map<string, Balance>();
   const base = Date.UTC(2026, 0, 1);
   const movementData: Prisma.StockMovementCreateManyInput[] = [];
   const receipt: StockMovementType = 'RECEIPT';
 
   for (let i = 0; i < movementCount; i += 1) {
-    const productId = productIds[i % productIds.length];
-    const storeId = storeIds[i % storeIds.length];
-    const k = key(productId, storeId);
-    const before = balances.get(k) ?? 0;
+    const productId = productIds[i % productIds.length]!;
+    const storeId = storeIds[i % storeIds.length]!;
+    const k = `${productId}:${storeId}`;
+    const before = balances.get(k)?.quantity ?? 0;
     const change = 1 + (i % 5); // 1..5, always positive so the balance never goes negative
     const after = before + change;
-    balances.set(k, after);
+    balances.set(k, { productId, storeId, quantity: after });
     movementData.push({
       productId,
       storeId,
@@ -131,11 +131,9 @@ export async function seedPerformanceDataset(
   }
 
   // Current balances per (product, store) from the final running totals.
-  const balanceData: Prisma.StockBalanceCreateManyInput[] = [];
-  for (const [k, quantity] of balances) {
-    const [productId, storeId] = k.split(':');
-    balanceData.push({ productId, storeId, quantity });
-  }
+  const balanceData: Prisma.StockBalanceCreateManyInput[] = [...balances.values()].map(
+    ({ productId, storeId, quantity }) => ({ productId, storeId, quantity }),
+  );
   for (let i = 0; i < balanceData.length; i += BATCH) {
     await prisma.stockBalance.createMany({ data: balanceData.slice(i, i + BATCH) });
   }
